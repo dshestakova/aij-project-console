@@ -69,6 +69,7 @@ npm run build
 - `AGENTS.md`: instructions for Codex and future coding agents.
 - `.env.example`: placeholder environment variable names only.
 - `src/app/dashboard/page.tsx`: initial Russian dashboard shell.
+- `docs/VERCEL_SETUP.md`: manual Vercel setup guide.
 
 ## Workflow
 
