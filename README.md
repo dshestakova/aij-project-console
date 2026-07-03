@@ -34,9 +34,31 @@ The target product is a secure Russian-language web interface with:
 
 ## Repository Status
 
-Current phase: documentation and workflow only.
+Current phase: Next.js app shell.
 
-This repository does not yet contain the application scaffold. Supabase, Vercel, and GigaChat are not connected yet.
+The repository contains a minimal Next.js, TypeScript, and Tailwind CSS shell. Supabase, Vercel, and GigaChat are not connected yet.
+
+## Local Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the development server:
+
+```bash
+npm run dev
+```
+
+Run checks:
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
 
 ## Key Documents
 
@@ -46,6 +68,7 @@ This repository does not yet contain the application scaffold. Supabase, Vercel,
 - `CODEX_WORKFLOW.md`: branch, PR, secrets, and external-service workflow.
 - `AGENTS.md`: instructions for Codex and future coding agents.
 - `.env.example`: placeholder environment variable names only.
+- `src/app/dashboard/page.tsx`: initial Russian dashboard shell.
 
 ## Workflow
 
@@ -59,7 +82,6 @@ This repository does not yet contain the application scaffold. Supabase, Vercel,
 
 ## Manual Setup
 
-No manual external setup is required for the current documentation-only phase.
+No manual external setup is required for the current app-shell phase.
 
 Future phases will require setup for Supabase, Vercel, and later GigaChat. Those steps should be documented and confirmed before implementation continues.
-
