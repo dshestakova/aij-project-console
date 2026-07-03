@@ -70,6 +70,7 @@ npm run build
 - `.env.example`: placeholder environment variable names only.
 - `src/app/dashboard/page.tsx`: initial Russian dashboard shell.
 - `docs/VERCEL_SETUP.md`: manual Vercel setup guide.
+- `docs/SUPABASE_SETUP.md`: manual Supabase setup guide.
 
 ## Workflow
 
