@@ -158,6 +158,10 @@ docs/project-import-template.csv
 Dry-run:
 
 ```bash
+npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv --validate-csv-only
+```
+
+```bash
 npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv --dry-run
 ```
 
@@ -168,6 +172,8 @@ npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv -
 ```
 
 See `docs/CSV_IMPORT.md` before running a real import. Real CSV files and `.env.local` must stay local and must not be committed.
+
+Before the real import, apply `supabase/migrations/20260706201000_add_project_source_payload.sql` in Supabase SQL Editor so original CSV rows can be preserved in `projects.source_payload`.
 
 ## Workflow
 

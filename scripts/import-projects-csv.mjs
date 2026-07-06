@@ -5,9 +5,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 const columnAliases = {
-  external_id: ["external_id", "id", "project_id", "код", "номер", "№"],
+  external_id: ["external_id", "id проекта", "id", "project_id", "код", "номер", "№"],
+  external_id_fallback: ["№ исходный", "номер исходный", "source_id"],
   client: ["client", "клиент", "компания", "заказчик"],
-  project_name: ["project_name", "project", "название", "проект", "название проекта"],
+  project_name: ["project_name", "project", "название проекта", "название", "проект"],
   cluster: ["cluster", "кластер"],
   status: ["status", "статус"],
   is_flagship: ["is_flagship", "flagship", "флагман", "флагманский"],
@@ -16,17 +17,20 @@ const columnAliases = {
   director: ["director", "директор"],
   industry_unit: ["industry_unit", "отраслевое управление", "оуправление"],
   essence: ["essence", "суть", "суть проекта"],
-  progress: ["progress", "прогресс"],
+  progress: ["progress", "прогресс реализации", "прогресс"],
   next_step: ["next_step", "следующий шаг", "next step"],
   funding: ["funding", "финансирование"],
-  funding_status: ["funding_status", "статус финансирования"],
+  funding_status: ["funding_status", "финансирование статус", "статус финансирования"],
+  funding_comment: ["финансирование комментарий", "funding_comment"],
   comment: ["comment", "комментарий"],
   is_archived: ["is_archived", "archive", "archived", "архив", "архивный"],
+  source_updated_at: ["дата последнего обновления", "source_updated_at"],
 };
 
 const requiredColumns = ["external_id"];
 const projectColumns = [
   "external_id",
+  "external_id_fallback",
   "client",
   "project_name",
   "cluster",
@@ -41,8 +45,10 @@ const projectColumns = [
   "next_step",
   "funding",
   "funding_status",
+  "funding_comment",
   "comment",
   "is_archived",
+  "source_updated_at",
 ];
 
 function printHelp() {
@@ -57,6 +63,9 @@ Options:
   --file <path>   CSV file to read.
   --dry-run       Validate and print a summary without database writes. Default.
   --import        Write to Supabase after validation.
+  --validate-csv-only
+                  Check CSV headers and required external_id fallback without
+                  reading Supabase or writing to the database.
   --help          Show this help.
 `);
 }
@@ -76,6 +85,8 @@ function parseArgs(argv) {
       args.mode = "dry-run";
     } else if (arg === "--import") {
       args.mode = "import";
+    } else if (arg === "--validate-csv-only") {
+      args.mode = "validate-csv-only";
     } else if (arg === "--file") {
       args.file = argv[index + 1] ?? "";
       index += 1;
@@ -140,9 +151,47 @@ function parseBoolean(value) {
     return false;
   }
 
-  return ["1", "true", "yes", "y", "да", "истина", "x", "+"].includes(
-    normalizedValue,
-  );
+  const falseValues = ["0", "false", "no", "n", "нет", "ложь", "-"];
+  const trueValues = ["1", "true", "yes", "y", "да", "истина", "x", "+"];
+
+  if (falseValues.includes(normalizedValue)) {
+    return false;
+  }
+
+  if (trueValues.includes(normalizedValue)) {
+    return true;
+  }
+
+  return normalizedValue.length > 0;
+}
+
+function parseSourceUpdatedAt(value) {
+  if (!value) {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+  const dateOnlyMatch = trimmedValue.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+
+  if (dateOnlyMatch) {
+    const [, rawDay, rawMonth, rawYear] = dateOnlyMatch;
+    const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+    const parsedDate = new Date(
+      Date.UTC(Number(year), Number(rawMonth) - 1, Number(rawDay)),
+    );
+
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.toISOString();
+    }
+  }
+
+  const parsedDate = new Date(trimmedValue);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return parsedDate.toISOString();
 }
 
 function parseCsv(csvText) {
@@ -226,14 +275,21 @@ function getCanonicalValue(record, canonicalName) {
 function normalizeCsvRow(record) {
   const normalized = {
     __rowNumber: record.__rowNumber,
+    source_payload: Object.fromEntries(
+      Object.entries(record).filter(([key]) => key !== "__rowNumber"),
+    ),
   };
 
   for (const column of projectColumns) {
     normalized[column] = getCanonicalValue(record, column);
   }
 
+  normalized.external_id =
+    normalized.external_id ?? normalized.external_id_fallback;
+  normalized.funding = normalized.funding_comment ?? normalized.funding;
   normalized.is_flagship = parseBoolean(normalized.is_flagship);
   normalized.is_archived = parseBoolean(normalized.is_archived);
+  normalized.updated_at = parseSourceUpdatedAt(normalized.source_updated_at);
 
   return normalized;
 }
@@ -385,6 +441,41 @@ function printValidationSummary(rows, validation, mode) {
   printMissing("Industry units to create in import mode", validation.missingIndustryUnits);
 }
 
+function validateCsvOnly(rows) {
+  const issues = [];
+  const externalIds = new Map();
+
+  for (const row of rows) {
+    if (!row.external_id) {
+      issues.push(
+        `Row ${row.__rowNumber}: missing required field external_id; expected "ID проекта" or fallback "№ исходный"`,
+      );
+      continue;
+    }
+
+    const normalizedExternalId = normalizeName(row.external_id);
+
+    if (externalIds.has(normalizedExternalId)) {
+      issues.push(
+        `Row ${row.__rowNumber}: duplicate external_id "${row.external_id}" also appears in row ${externalIds.get(
+          normalizedExternalId,
+        )}`,
+      );
+    } else {
+      externalIds.set(normalizedExternalId, row.__rowNumber);
+    }
+  }
+
+  return {
+    issues,
+    missingClusters: [],
+    missingStatuses: [],
+    missingFlagshipStatuses: [],
+    missingPeople: [],
+    missingIndustryUnits: [],
+  };
+}
+
 function printMissing(title, items) {
   if (items.length === 0) {
     return;
@@ -494,6 +585,8 @@ function buildProjectPayload(row, references) {
     funding_status: row.funding_status,
     comment: row.comment,
     is_archived: row.is_archived,
+    source_payload: row.source_payload,
+    ...(row.updated_at ? { updated_at: row.updated_at } : {}),
   };
 }
 
@@ -509,6 +602,26 @@ async function main() {
     throw new Error("Missing --file path.");
   }
 
+  const csvPath = path.resolve(process.cwd(), args.file);
+  const csvText = await readFile(csvPath, "utf8");
+  const rows = parseCsv(csvText).map(normalizeCsvRow);
+
+  if (rows.length === 0) {
+    throw new Error("CSV has no data rows to import.");
+  }
+
+  if (args.mode === "validate-csv-only") {
+    const validation = validateCsvOnly(rows);
+    printValidationSummary(rows, validation, args.mode);
+
+    if (validation.issues.length > 0) {
+      throw new Error("CSV-only validation failed.");
+    }
+
+    console.log("CSV-only validation finished. No database reads or writes were made.");
+    return;
+  }
+
   await loadLocalEnv();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -518,14 +631,6 @@ async function main() {
     throw new Error(
       "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in .env.local.",
     );
-  }
-
-  const csvPath = path.resolve(process.cwd(), args.file);
-  const csvText = await readFile(csvPath, "utf8");
-  const rows = parseCsv(csvText).map(normalizeCsvRow);
-
-  if (rows.length === 0) {
-    throw new Error("CSV has no data rows to import.");
   }
 
   const supabase = createClient(supabaseUrl, supabaseSecretKey, {
