@@ -26,15 +26,17 @@
 docs/project-import-template.csv
 ```
 
-Ожидаемые колонки:
+Ожидаемые колонки текущего Google Sheets-реестра:
 
 ```csv
-external_id,client,project_name,cluster,status,is_flagship,flagship_status,csm,director,industry_unit,essence,progress,next_step,funding,funding_status,comment,is_archived
+ID проекта,Кластер,№ в кластере,№ исходный,Клиент,Название проекта,Суть проекта,Срок реализации,Тип срока,Прогресс реализации,Статус,Риск,Причина риска,Следующий шаг,Финансирование статус,Финансирование комментарий,Спонсор проекта,Партнер,Статья/мероприятие,CSM,Директор,Отраслевое управление,Флагман,AIJ метка исходная,Дата последнего обновления,Обновил,Архив,Комментарий
 ```
 
 Минимально обязательная колонка для записи в базу:
 
-- `external_id`
+- `ID проекта`
+
+Если `ID проекта` пустой, скрипт использует fallback `№ исходный`. Если обе колонки пустые, dry-run покажет blocking validation issue.
 
 Рекомендуемые колонки для качества данных:
 
@@ -44,7 +46,30 @@ external_id,client,project_name,cluster,status,is_flagship,flagship_status,csm,d
 - `status`
 - `next_step`
 
-Скрипт также понимает часть русских заголовков, например `Клиент`, `Проект`, `Кластер`, `Статус`, `Следующий шаг`, `Флагман`.
+## Mapping
+
+| CSV header | Supabase field |
+| --- | --- |
+| `ID проекта` | `projects.external_id` |
+| `№ исходный` | fallback for `projects.external_id` |
+| `Клиент` | `projects.client` |
+| `Название проекта` | `projects.project_name` |
+| `Кластер` | `clusters.name` -> `projects.cluster_id` |
+| `Статус` | `project_statuses.name` -> `projects.status_id` |
+| `Суть проекта` | `projects.essence` |
+| `Прогресс реализации` | `projects.progress` |
+| `Следующий шаг` | `projects.next_step` |
+| `Финансирование статус` | `projects.funding_status` |
+| `Финансирование комментарий` | `projects.funding` |
+| `CSM` | `people.full_name` where `person_type = csm` -> `projects.csm_id` |
+| `Директор` | `people.full_name` where `person_type = director` -> `projects.director_id` |
+| `Отраслевое управление` | `industry_units.name` -> `projects.industry_unit_id` |
+| `Флагман` | `projects.is_flagship` |
+| `Архив` | `projects.is_archived` |
+| `Комментарий` | `projects.comment` |
+| `Дата последнего обновления` | `projects.updated_at` if safely parseable |
+
+The full original CSV row is stored in `projects.source_payload` during real import.
 
 ## Что делает импорт
 
@@ -64,6 +89,25 @@ external_id,client,project_name,cluster,status,is_flagship,flagship_status,csm,d
 - в import mode создает недостающих CSM/director и industry units;
 - не создает недостающие clusters/statuses/flagship statuses, а останавливает импорт;
 - upsert-ит проекты по `external_id`, поэтому повторный импорт того же `external_id` обновит проект, а не создаст дубль.
+- сохраняет полный исходный CSV row в `projects.source_payload`.
+
+## Migration for source payload
+
+Перед реальным импортом нужно применить migration:
+
+```bash
+supabase/migrations/20260706201000_add_project_source_payload.sql
+```
+
+Самый простой MVP-способ:
+
+1. Откройте Supabase Dashboard.
+2. Откройте проект.
+3. Перейдите в SQL Editor.
+4. Вставьте содержимое migration.
+5. Нажмите Run.
+
+Migration не удаляет данные и только добавляет nullable `projects.source_payload jsonb`, если колонки еще нет.
 
 ## Env variables
 
@@ -82,6 +126,14 @@ SUPABASE_SECRET_KEY=
 
 Dry-run ничего не пишет в базу.
 
+Проверить только CSV-заголовки и правило `ID проекта` / `№ исходный` можно без Supabase:
+
+```bash
+npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv --validate-csv-only
+```
+
+Эта команда не читает базу и ничего не пишет.
+
 ```bash
 npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv --dry-run
 ```
@@ -93,6 +145,15 @@ npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv -
 - нет ли дублей `external_id`;
 - нет ли unmatched clusters/statuses/flagship statuses;
 - какие CSM/director/industry units будут созданы при реальном импорте.
+
+Ожидаемый успешный dry-run выглядит примерно так:
+
+```text
+Mode: dry-run
+Rows found: 123
+Rows with external_id: 123
+Dry-run finished. No database writes were made.
+```
 
 ## Real import
 

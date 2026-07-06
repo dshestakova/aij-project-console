@@ -53,6 +53,7 @@ Fields:
 - `funding` text.
 - `funding_status` text.
 - `comment` text.
+- `source_payload` jsonb, nullable.
 - `is_archived` boolean.
 - `archived_at` timestamptz, nullable.
 - `archived_by` uuid, nullable, references `profiles.id`.
@@ -65,6 +66,7 @@ Notes:
 - Archived projects are hidden from the main registry by default and available through a filter.
 - Search should work across Russian and English text.
 - When `next_step` is updated later, the old `next_step` should be appended to `progress`, the new value should be saved into `next_step`, and a `project_changes` row should be created. This flow is documented here but is not implemented in the initial schema PR.
+- `source_payload` preserves the original CSV row from the import workflow so source-only fields are not lost.
 
 ### `project_statuses`
 
