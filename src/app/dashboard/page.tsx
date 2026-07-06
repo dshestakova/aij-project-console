@@ -1,3 +1,5 @@
+import { publicEnvStatus } from "@/lib/env";
+
 const summaryCards = [
   { label: "Всего проектов", value: "0", detail: "Реестр ожидает импорт" },
   { label: "Флагманские", value: "0", detail: "Паспортный трекинг пуст" },
@@ -23,6 +25,16 @@ const navigationItems = [
 ];
 
 export default function DashboardPage() {
+  const supabaseStatus = publicEnvStatus.isSupabaseConfigured
+    ? {
+        label: "Supabase env настроены",
+        tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      }
+    : {
+        label: "Supabase env не настроены",
+        tone: "border-amber-200 bg-amber-50 text-amber-800",
+      };
+
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
@@ -98,6 +110,24 @@ export default function DashboardPage() {
                     </span>
                   ))}
                 </div>
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-950">
+                    Подключения
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Проверяется только наличие публичных переменных окружения.
+                  </p>
+                </div>
+                <span
+                  className={`inline-flex min-h-8 w-fit items-center rounded-md border px-3 text-sm font-medium ${supabaseStatus.tone}`}
+                >
+                  {supabaseStatus.label}
+                </span>
               </div>
             </section>
 

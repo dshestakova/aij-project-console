@@ -121,22 +121,20 @@ Supabase нужен для:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
 ```
 
 Нюанс по названиям:
 
-- Supabase сейчас рекомендует новые ключи `publishable` и `secret`.
-- В старой терминологии client-side key часто назывался `anon`.
-- В старой терминологии server-side elevated key часто назывался `service_role`.
-- Перед первым кодовым подключением мы отдельно решим, оставляем ли текущие env names или переименовываем их под актуальные Supabase key names.
+- Supabase сейчас рекомендует ключи `publishable` и `secret`.
+- Используем актуальные env names: `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` и `SUPABASE_SECRET_KEY`.
 
 Правила безопасности:
 
 - `NEXT_PUBLIC_SUPABASE_URL` можно использовать в browser.
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` или future publishable key можно использовать в browser.
-- `SUPABASE_SERVICE_ROLE_KEY` или future secret key нельзя использовать в browser.
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` можно использовать в browser.
+- `SUPABASE_SECRET_KEY` нельзя использовать в browser.
 - server-only key нельзя добавлять в React components.
 - server-only key нельзя присылать в чат.
 - server-only key нельзя коммитить.
@@ -151,8 +149,8 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+SUPABASE_SECRET_KEY=...
 ```
 
 Файл `.env.local` должен оставаться только локально. Он уже должен игнорироваться `.gitignore`.
@@ -170,11 +168,11 @@ SUPABASE_SERVICE_ROLE_KEY=...
 Для первого read-only/client setup обычно понадобятся:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` или future publishable key name
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
 Для server-side admin operations позже понадобится:
 
-- `SUPABASE_SERVICE_ROLE_KEY` или future secret key name
+- `SUPABASE_SECRET_KEY`
 
 Важно:
 

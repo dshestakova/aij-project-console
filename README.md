@@ -72,6 +72,18 @@ npm run build
 - `docs/VERCEL_SETUP.md`: manual Vercel setup guide.
 - `docs/SUPABASE_SETUP.md`: manual Supabase setup guide.
 
+## Supabase Environment
+
+The app uses current Supabase key naming:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
+```
+
+Only `NEXT_PUBLIC_*` values may be exposed to the browser. `SUPABASE_SECRET_KEY` is reserved for future server-side work and must never be committed or sent in chat.
+
 ## Workflow
 
 - `main` stays stable.
