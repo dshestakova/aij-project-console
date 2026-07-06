@@ -98,6 +98,42 @@ To create a test user:
 4. Enter the user's email and password.
 5. Use that email and password on `/login`.
 
+## Supabase Database
+
+Database schema changes live in `supabase/migrations`.
+
+The initial schema migration creates:
+
+- app profiles and roles;
+- project status, flagship status, cluster, people, and industry unit reference tables;
+- project registry, project change history, project file metadata, audit log, and future AI query log tables;
+- initial reference values for statuses, flagship statuses, and clusters;
+- RLS policies that block anonymous table access and keep writes role-based.
+
+Recommended MVP way to apply the first migration:
+
+1. Open Supabase Dashboard.
+2. Open the project.
+3. Go to SQL Editor.
+4. Open `supabase/migrations/20260706143000_initial_project_registry_schema.sql` locally.
+5. Paste the full SQL into a new SQL query.
+6. Click Run.
+7. After it succeeds, create the first admin profile for your existing Auth user:
+
+```sql
+insert into public.profiles (id, email, display_name, role)
+select id, email, email, 'admin'
+from auth.users
+where email = 'your-email@example.com'
+on conflict (id) do update
+set
+  email = excluded.email,
+  role = 'admin',
+  updated_at = now();
+```
+
+Replace `your-email@example.com` with the email you used to log in. Do not paste passwords or secret keys into SQL or chat.
+
 ## Workflow
 
 - `main` stays stable.
