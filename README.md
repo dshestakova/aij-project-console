@@ -134,6 +134,16 @@ set
 
 Replace `your-email@example.com` with the email you used to log in. Do not paste passwords or secret keys into SQL or chat.
 
+## Project Registry
+
+The first project registry UI is read-only:
+
+- `/dashboard` loads aggregate counters and status/cluster distributions from Supabase.
+- `/projects` loads project cards and supports local search/filtering over the authenticated read-only result set.
+- `/projects/[id]` shows a read-only project detail page.
+
+The UI respects Supabase Auth, middleware protection, and RLS. Editing, imports, file uploads, and GigaChat are intentionally out of scope for this phase.
+
 ## Workflow
 
 - `main` stays stable.

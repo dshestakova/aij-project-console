@@ -1,302 +1,193 @@
-"use client";
+import Link from "next/link";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { UserHeader } from "@/components/auth/user-header";
+import { Badge } from "@/components/projects/badge";
+import { ProjectCard } from "@/components/projects/project-card";
+import { getBadgeTone } from "@/lib/project-registry/colors";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getProjectRegistryData } from "@/lib/supabase/project-registry";
+import type { ProjectListItem, ReferenceItem } from "@/types/project-registry";
 
-import { publicEnvStatus } from "@/lib/env";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+export const dynamic = "force-dynamic";
 
-const summaryCards = [
-  { label: "Всего проектов", value: "0", detail: "Реестр ожидает импорт" },
-  { label: "Флагманские", value: "0", detail: "Паспортный трекинг пуст" },
-  { label: "В разработке", value: "0", detail: "Статусы не загружены" },
-];
+export default async function DashboardPage() {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-const statusItems = [
-  { label: "идея/КП", value: "0", tone: "bg-amber-100 text-amber-800" },
-  { label: "факт оплаты", value: "0", tone: "bg-emerald-100 text-emerald-800" },
-  { label: "уточнение ТЗ", value: "0", tone: "bg-sky-100 text-sky-800" },
-  { label: "в разработке", value: "0", tone: "bg-indigo-100 text-indigo-800" },
-  { label: "на паузе", value: "0", tone: "bg-slate-200 text-slate-700" },
-];
+  const { clusters, errorMessage, projects, statuses } =
+    await getProjectRegistryData();
 
-const filterLabels = ["Флагман", "CSM", "Директор", "Кластер", "Статус"];
+  const activeProjects = projects.filter((project) => !project.is_archived);
+  const archivedProjects = projects.filter((project) => project.is_archived);
+  const flagshipProjects = projects.filter((project) => project.is_flagship);
 
-const navigationItems = [
-  "Дашборд",
-  "Проекты",
-  "История",
-  "Файлы",
-  "Экспорт",
-];
+  const summaryCards = [
+    {
+      label: "Всего проектов",
+      value: projects.length,
+      detail: "Все записи в Supabase",
+    },
+    {
+      label: "Активные",
+      value: activeProjects.length,
+      detail: "Архив скрыт по умолчанию",
+    },
+    {
+      label: "Флагманские",
+      value: flagshipProjects.length,
+      detail: "Проекты с флагманским признаком",
+    },
+    {
+      label: "Архив",
+      value: archivedProjects.length,
+      detail: "Скрыты из основного списка",
+    },
+  ];
 
-export default function DashboardPage() {
-  const router = useRouter();
-  const [userEmail, setUserEmail] = useState("");
-  const [authErrorMessage, setAuthErrorMessage] = useState("");
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [isRedirectingToLogin, setIsRedirectingToLogin] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
-
-  const supabaseStatus = publicEnvStatus.isSupabaseConfigured
-    ? {
-        label: "Supabase env настроены",
-        tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
-      }
-    : {
-        label: "Supabase env не настроены",
-        tone: "border-amber-200 bg-amber-50 text-amber-800",
-      };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function checkUser() {
-      try {
-        const supabase = createBrowserSupabaseClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!isMounted) {
-          return;
-        }
-
-        if (!user) {
-          setIsRedirectingToLogin(true);
-          router.replace("/login");
-          return;
-        }
-
-        setUserEmail(user.email ?? "Пользователь");
-      } catch {
-        if (isMounted) {
-          setAuthErrorMessage(
-            "Не удалось проверить вход. Проверьте настройки Supabase.",
-          );
-        }
-      } finally {
-        if (isMounted) {
-          setIsCheckingAuth(false);
-        }
-      }
-    }
-
-    checkUser();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [router]);
-
-  async function handleSignOut() {
-    setIsSigningOut(true);
-
-    try {
-      const supabase = createBrowserSupabaseClient();
-      await supabase.auth.signOut();
-    } finally {
-      router.replace("/login");
-      router.refresh();
-    }
-  }
-
-  if (isCheckingAuth || isRedirectingToLogin) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-[#f5f7fb] px-4 text-slate-950">
-        <section className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 text-center shadow-sm">
-          <p className="text-sm font-medium text-slate-500">
-            AIJ Project Console
-          </p>
-          <h1 className="mt-2 text-xl font-semibold text-slate-950">
-            Проверяем вход
-          </h1>
-        </section>
-      </main>
-    );
-  }
-
-  if (authErrorMessage) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-[#f5f7fb] px-4 text-slate-950">
-        <section className="w-full max-w-md rounded-lg border border-rose-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-rose-700">
-            {authErrorMessage}
-          </p>
-          <button
-            className="mt-4 h-10 rounded-md bg-slate-950 px-4 text-sm font-medium text-white"
-            onClick={() => router.replace("/login")}
-            type="button"
-          >
-            Перейти ко входу
-          </button>
-        </section>
-      </main>
-    );
-  }
+  const statusDistribution = getDistribution(statuses, projects, "status");
+  const clusterDistribution = getDistribution(clusters, projects, "cluster");
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-500">
-              AIJ Project Console
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold text-slate-950 sm:text-3xl">
-              Реестр AIJ-проектов
-            </h1>
+        <UserHeader
+          activePath="/dashboard"
+          email={user?.email ?? "Пользователь"}
+        />
+
+        <section className="flex min-w-0 flex-col gap-6 py-6">
+          {errorMessage ? (
+            <section className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+              {errorMessage}
+            </section>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {summaryCards.map((card) => (
+              <article
+                className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+                key={card.label}
+              >
+                <p className="text-sm font-medium text-slate-500">
+                  {card.label}
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-slate-950">
+                  {card.value}
+                </p>
+                <p className="mt-2 text-sm text-slate-500">{card.detail}</p>
+              </article>
+            ))}
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="min-w-0 text-left sm:text-right">
-              <p className="truncate text-sm font-medium text-slate-800">
-                {userEmail}
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <DistributionPanel
+              emptyLabel="Статусы готовы, проекты пока не импортированы."
+              items={statusDistribution}
+              title="Распределение по статусам"
+            />
+            <DistributionPanel
+              emptyLabel="Кластеры готовы, проекты пока не импортированы."
+              items={clusterDistribution}
+              title="Распределение по кластерам"
+            />
+          </div>
+
+          {projects.length === 0 ? (
+            <section className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
+              <p className="text-base font-semibold text-slate-950">
+                Проекты еще не импортированы
               </p>
-              <p className="text-xs text-slate-500">пользователь Supabase</p>
-            </div>
-            <button
-              className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-400"
-              disabled={isSigningOut}
-              onClick={handleSignOut}
-              type="button"
-            >
-              {isSigningOut ? "Выходим..." : "Выйти"}
-            </button>
-          </div>
-        </header>
-
-        <div className="grid min-w-0 flex-1 gap-6 py-6 lg:grid-cols-[220px_1fr]">
-          <aside className="min-w-0 lg:border-r lg:border-slate-200 lg:pr-6">
-            <nav className="flex max-w-full gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
-              {navigationItems.map((item, index) => (
-                <button
-                  className={`h-10 shrink-0 rounded-md px-3 text-left text-sm font-medium transition ${
-                    index === 0
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-600 hover:bg-white hover:text-slate-950"
-                  }`}
-                  key={item}
-                  type="button"
-                >
-                  {item}
-                </button>
-              ))}
-            </nav>
-          </aside>
-
-          <section className="flex min-w-0 flex-col gap-6">
-            <div className="grid gap-3 sm:grid-cols-3">
-              {summaryCards.map((card) => (
-                <article
-                  className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
-                  key={card.label}
-                >
-                  <p className="text-sm font-medium text-slate-500">
-                    {card.label}
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold text-slate-950">
-                    {card.value}
-                  </p>
-                  <p className="mt-2 text-sm text-slate-500">{card.detail}</p>
-                </article>
-              ))}
-            </div>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                <div className="min-w-0">
-                  <h2 className="text-lg font-semibold text-slate-950">
-                    Распределение по статусам
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Данные появятся после импорта текущего реестра.
-                  </p>
-                </div>
-                <div className="flex min-w-0 flex-wrap gap-2">
-                  {statusItems.map((status) => (
-                    <span
-                      className={`inline-flex min-h-8 items-center gap-2 rounded-md px-3 text-sm font-medium ${status.tone}`}
-                      key={status.label}
-                    >
-                      <span>{status.label}</span>
-                      <span>{status.value}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                База данных и справочники готовы. После импорта здесь появятся
+                метрики, распределения и карточки проектов.
+              </p>
+              <Link
+                className="mt-5 inline-flex h-10 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white shadow-sm"
+                href="/projects"
+              >
+                Открыть реестр
+              </Link>
             </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-950">
-                    Подключения
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Проверяется только наличие публичных переменных окружения.
-                  </p>
-                </div>
-                <span
-                  className={`inline-flex min-h-8 w-fit items-center rounded-md border px-3 text-sm font-medium ${supabaseStatus.tone}`}
-                >
-                  {supabaseStatus.label}
-                </span>
-              </div>
-            </section>
-
+          ) : (
             <section className="flex flex-col gap-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-slate-950">
-                    Проекты
+                    Последние обновления
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Основной реестр скрывает архивные проекты по умолчанию.
+                    Показаны последние активные проекты по времени обновления.
                   </p>
                 </div>
-                <button
-                  className="h-10 rounded-md bg-slate-950 px-4 text-sm font-medium text-white shadow-sm"
-                  type="button"
+                <Link
+                  className="h-10 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
+                  href="/projects"
                 >
-                  Экспорт CSV
-                </button>
+                  Все проекты
+                </Link>
               </div>
-
-              <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-                <label className="block">
-                  <span className="sr-only">Поиск проектов</span>
-                  <input
-                    className="h-11 w-full rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
-                    placeholder="ID, клиент, название или описание"
-                    type="search"
-                  />
-                </label>
-                <div className="flex max-w-full gap-2 overflow-x-auto pb-1 lg:pb-0">
-                  {filterLabels.map((label) => (
-                    <button
-                      className="h-11 shrink-0 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600"
-                      key={label}
-                      type="button"
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
-                <p className="text-base font-semibold text-slate-950">
-                  Проекты не загружены
-                </p>
-                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-                  Следующий этап подготовит структуру данных для импорта
-                  CSV/XLSX.
-                </p>
+              <div className="grid gap-4 xl:grid-cols-2">
+                {activeProjects.slice(0, 4).map((project) => (
+                  <ProjectCard key={project.id} project={project} />
+                ))}
               </div>
             </section>
-          </section>
-        </div>
+          )}
+        </section>
       </div>
     </main>
+  );
+}
+
+function getDistribution(
+  references: ReferenceItem[],
+  projects: ProjectListItem[],
+  key: "cluster" | "status",
+) {
+  return references.map((reference) => ({
+    ...reference,
+    count: projects.filter((project) => project[key]?.id === reference.id)
+      .length,
+  }));
+}
+
+function DistributionPanel({
+  emptyLabel,
+  items,
+  title,
+}: {
+  emptyLabel: string;
+  items: Array<ReferenceItem & { count: number }>;
+  title: string;
+}) {
+  const total = items.reduce((sum, item) => sum + item.count, 0);
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {total === 0 ? emptyLabel : "Считается по всем проектам в базе."}
+          </p>
+        </div>
+        <Badge colorKey="slate">{total}</Badge>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {items.map((item) => (
+          <span
+            className={`inline-flex min-h-8 items-center gap-2 rounded-md border px-3 text-sm font-medium ${getBadgeTone(
+              item.color_key,
+            )}`}
+            key={item.id}
+          >
+            <span>{item.name}</span>
+            <span>{item.count}</span>
+          </span>
+        ))}
+      </div>
+    </section>
   );
 }
