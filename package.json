@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "import:projects": "node scripts/import-projects-csv.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit --project tsconfig.typecheck.json"

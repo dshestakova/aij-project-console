@@ -71,6 +71,7 @@ npm run build
 - `src/app/dashboard/page.tsx`: initial Russian dashboard shell.
 - `docs/VERCEL_SETUP.md`: manual Vercel setup guide.
 - `docs/SUPABASE_SETUP.md`: manual Supabase setup guide.
+- `docs/CSV_IMPORT.md`: local CSV import workflow for project data.
 
 ## Supabase Environment
 
@@ -143,6 +144,30 @@ The first project registry UI is read-only:
 - `/projects/[id]` shows a read-only project detail page.
 
 The UI respects Supabase Auth, middleware protection, and RLS. Editing, imports, file uploads, and GigaChat are intentionally out of scope for this phase.
+
+## CSV Import
+
+Project import is a local server-side workflow, not a browser upload.
+
+Template:
+
+```bash
+docs/project-import-template.csv
+```
+
+Dry-run:
+
+```bash
+npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv --dry-run
+```
+
+Real import:
+
+```bash
+npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv --import
+```
+
+See `docs/CSV_IMPORT.md` before running a real import. Real CSV files and `.env.local` must stay local and must not be committed.
 
 ## Workflow
 
