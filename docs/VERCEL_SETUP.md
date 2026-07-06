@@ -87,8 +87,8 @@ Vercel нужен для:
 Ожидаемые переменные из `.env.example`:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY`
 - `GIGACHAT_AUTH_KEY`
 - `GIGACHAT_SCOPE`
 - `GIGACHAT_API_URL`
@@ -96,7 +96,7 @@ Vercel нужен для:
 Правила:
 
 - `NEXT_PUBLIC_*` значения доступны браузеру, поэтому туда нельзя класть server-only secrets.
-- `SUPABASE_SERVICE_ROLE_KEY` должен быть только server-side.
+- `SUPABASE_SECRET_KEY` должен быть только server-side.
 - `GIGACHAT_AUTH_KEY` должен быть только server-side.
 - Реальные значения не присылать в чат.
 - Реальные значения не коммитить.
