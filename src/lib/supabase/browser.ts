@@ -1,8 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 import { assertPublicSupabaseEnv } from "@/lib/env";
 
-type BrowserSupabaseClient = ReturnType<typeof createClient>;
+type BrowserSupabaseClient = ReturnType<typeof createBrowserClient>;
 
 let browserSupabaseClient: BrowserSupabaseClient | null = null;
 
@@ -13,7 +13,10 @@ export function createBrowserSupabaseClient() {
 
   const { supabaseUrl, supabasePublishableKey } = assertPublicSupabaseEnv();
 
-  browserSupabaseClient = createClient(supabaseUrl, supabasePublishableKey);
+  browserSupabaseClient = createBrowserClient(
+    supabaseUrl,
+    supabasePublishableKey,
+  );
 
   return browserSupabaseClient;
 }

@@ -88,6 +88,8 @@ Only `NEXT_PUBLIC_*` values may be exposed to the browser. `SUPABASE_SECRET_KEY`
 
 Access is private. Users are created manually by an admin in Supabase Auth; the app does not expose public registration.
 
+Protected routes are guarded with Supabase Auth cookies in middleware before protected page content is rendered. Current protected routes are `/dashboard`, `/projects`, and `/ai-analyst`. Public routes are `/` and `/login`.
+
 To create a test user:
 
 1. Open Supabase Dashboard.
