@@ -20,10 +20,10 @@ Fields:
 
 - `id` uuid primary key, references auth user id.
 - `email` text.
-- `full_name` text.
-- `role` text or enum: `admin`, `editor`, `viewer`.
-- `created_at` timestamp.
-- `updated_at` timestamp.
+- `display_name` text.
+- `role` text: `admin`, `editor`, `viewer`.
+- `created_at` timestamptz.
+- `updated_at` timestamptz.
 
 Notes:
 
@@ -54,16 +54,17 @@ Fields:
 - `funding_status` text.
 - `comment` text.
 - `is_archived` boolean.
-- `archived_at` timestamp, nullable.
+- `archived_at` timestamptz, nullable.
 - `archived_by` uuid, nullable, references `profiles.id`.
-- `created_at` timestamp.
-- `updated_at` timestamp.
+- `created_at` timestamptz.
+- `updated_at` timestamptz.
 
 Notes:
 
 - `external_id` should be unique when present.
 - Archived projects are hidden from the main registry by default and available through a filter.
 - Search should work across Russian and English text.
+- When `next_step` is updated later, the old `next_step` should be appended to `progress`, the new value should be saved into `next_step`, and a `project_changes` row should be created. This flow is documented here but is not implemented in the initial schema PR.
 
 ### `project_statuses`
 
@@ -76,18 +77,16 @@ Initial values:
 - `уточнение ТЗ`
 - `в разработке`
 - `на паузе`
-- `не указан`
 
 Fields:
 
 - `id` uuid primary key.
 - `name` text.
-- `slug` text.
-- `color_token` text.
+- `color_key` text.
 - `sort_order` integer.
 - `is_active` boolean.
-- `created_at` timestamp.
-- `updated_at` timestamp.
+- `created_at` timestamptz.
+- `updated_at` timestamptz.
 
 ### `flagship_statuses`
 
@@ -103,12 +102,11 @@ Fields:
 
 - `id` uuid primary key.
 - `name` text.
-- `slug` text.
-- `color_token` text.
+- `color_key` text.
 - `sort_order` integer.
 - `is_active` boolean.
-- `created_at` timestamp.
-- `updated_at` timestamp.
+- `created_at` timestamptz.
+- `updated_at` timestamptz.
 
 ### `clusters`
 
@@ -125,18 +123,16 @@ Initial values:
 - `Социальный`
 - `СКМ`
 - `Транспорт`
-- `не указан`
 
 Fields:
 
 - `id` uuid primary key.
 - `name` text.
-- `slug` text.
-- `color_token` text.
+- `color_key` text.
 - `sort_order` integer.
 - `is_active` boolean.
-- `created_at` timestamp.
-- `updated_at` timestamp.
+- `created_at` timestamptz.
+- `updated_at` timestamptz.
 
 ### `people`
 
@@ -146,23 +142,16 @@ Fields:
 
 - `id` uuid primary key.
 - `full_name` text.
+- `person_type` text: `csm`, `director`.
 - `email` text, nullable.
 - `is_active` boolean.
-- `created_at` timestamp.
-- `updated_at` timestamp.
-
-Related role mapping table:
-
-- `person_roles`
-  - `id` uuid primary key.
-  - `person_id` uuid, references `people.id`.
-  - `role` text: `csm`, `director`.
-  - `created_at` timestamp.
+- `created_at` timestamptz.
+- `updated_at` timestamptz.
 
 Reasoning:
 
-- A single `people` table avoids duplicating the same person across CSM and director lists.
-- `person_roles` allows one person to have multiple responsibility types later.
+- CSM and directors are reference values, not only free text on `projects`.
+- The initial schema keeps a simple `person_type` field. If one person needs multiple responsibility types later, a separate role mapping table can be added in a future migration.
 - Application users stay in `profiles`; external or business responsible people stay in `people`.
 
 ### `industry_units`
@@ -173,11 +162,9 @@ Fields:
 
 - `id` uuid primary key.
 - `name` text.
-- `slug` text.
 - `is_active` boolean.
-- `sort_order` integer.
-- `created_at` timestamp.
-- `updated_at` timestamp.
+- `created_at` timestamptz.
+- `updated_at` timestamptz.
 
 ### `project_changes`
 
@@ -187,8 +174,8 @@ Fields:
 
 - `id` uuid primary key.
 - `project_id` uuid, references `projects.id`.
-- `user_id` uuid, references `profiles.id`.
-- `changed_at` timestamp.
+- `changed_by` uuid, references `profiles.id`.
+- `changed_at` timestamptz.
 - `field_name` text.
 - `old_value` text.
 - `new_value` text.
@@ -208,14 +195,13 @@ Fields:
 
 - `id` uuid primary key.
 - `project_id` uuid, references `projects.id`.
-- `storage_bucket` text.
-- `storage_path` text.
 - `file_name` text.
+- `storage_path` text.
 - `mime_type` text.
 - `size_bytes` bigint.
 - `uploaded_by` uuid, references `profiles.id`.
-- `uploaded_at` timestamp.
-- `deleted_at` timestamp, nullable.
+- `uploaded_at` timestamptz.
+- `deleted_at` timestamptz, nullable.
 - `deleted_by` uuid, nullable, references `profiles.id`.
 
 Notes:
@@ -232,19 +218,20 @@ Fields:
 
 - `id` uuid primary key.
 - `user_id` uuid, nullable, references `profiles.id`.
-- `event_type` text.
+- `action` text.
 - `entity_type` text.
 - `entity_id` uuid, nullable.
 - `metadata` jsonb.
-- `created_at` timestamp.
+- `created_at` timestamptz.
 
 Example events:
 
 - login;
-- export;
-- file upload;
-- file delete;
-- future admin actions.
+- logout;
+- export_projects;
+- upload_file;
+- delete_file;
+- ai_query.
 
 ### `ai_queries`
 
@@ -256,9 +243,48 @@ Fields:
 - `user_id` uuid, references `profiles.id`.
 - `question` text.
 - `response_summary` text.
-- `status` text.
-- `metadata` jsonb.
-- `created_at` timestamp.
+- `token_usage` jsonb.
+- `created_at` timestamptz.
+
+## Initial Reference Data
+
+`project_statuses`:
+
+- `идея/КП` with `amber`.
+- `факт оплаты` with `green`.
+- `уточнение ТЗ` with `blue`.
+- `в разработке` with `violet`.
+- `на паузе` with `gray`.
+
+`flagship_statuses`:
+
+- `очередь на паспорт`.
+- `заполнение паспорта`.
+- `внесен на ПРБР`.
+
+`clusters`:
+
+- `Сфера услуг`.
+- `Торговля`.
+- `Промышленность`.
+- `Недвижимость`.
+- `Производство`.
+- `Инфраструктура`.
+- `Социальный`.
+- `СКМ`.
+- `Транспорт`.
+
+## RLS Baseline
+
+- Anonymous users have no table access.
+- Authenticated users can read reference data and project data.
+- `profiles` are readable by the owner and by admins.
+- Reference tables are writable only by admins.
+- `projects`, `project_changes`, and `project_files` are writable by admins and editors.
+- Physical deletes for projects, changes, and file metadata are intentionally not exposed; project archiving and file soft deletion should use updates.
+- `audit_log` is readable only by admins in the initial policy set.
+- `ai_queries` are readable by the owning user and admins; users may insert their own future query records.
+- The first admin profile must be created manually after applying migrations because public self-registration and self-assigned roles are intentionally not allowed.
 
 Notes:
 
@@ -278,5 +304,4 @@ Notes:
 | Upload files | Yes | Yes | No |
 | Delete files | Yes | Yes | No |
 | Manage users | Yes | No | No |
-| Manage reference data | Later | Later or no | No |
-
+| Manage reference data | Yes | No | No |
