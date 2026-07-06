@@ -1,4 +1,10 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
 import { publicEnvStatus } from "@/lib/env";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 const summaryCards = [
   { label: "Всего проектов", value: "0", detail: "Реестр ожидает импорт" },
@@ -25,6 +31,13 @@ const navigationItems = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const [userEmail, setUserEmail] = useState("");
+  const [authErrorMessage, setAuthErrorMessage] = useState("");
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isRedirectingToLogin, setIsRedirectingToLogin] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
   const supabaseStatus = publicEnvStatus.isSupabaseConfigured
     ? {
         label: "Supabase env настроены",
@@ -35,24 +48,120 @@ export default function DashboardPage() {
         tone: "border-amber-200 bg-amber-50 text-amber-800",
       };
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkUser() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (!user) {
+          setIsRedirectingToLogin(true);
+          router.replace("/login");
+          return;
+        }
+
+        setUserEmail(user.email ?? "Пользователь");
+      } catch {
+        if (isMounted) {
+          setAuthErrorMessage(
+            "Не удалось проверить вход. Проверьте настройки Supabase.",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsCheckingAuth(false);
+        }
+      }
+    }
+
+    checkUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
+  async function handleSignOut() {
+    setIsSigningOut(true);
+
+    try {
+      const supabase = createBrowserSupabaseClient();
+      await supabase.auth.signOut();
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
+  }
+
+  if (isCheckingAuth || isRedirectingToLogin) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-[#f5f7fb] px-4 text-slate-950">
+        <section className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 text-center shadow-sm">
+          <p className="text-sm font-medium text-slate-500">
+            AIJ Project Console
+          </p>
+          <h1 className="mt-2 text-xl font-semibold text-slate-950">
+            Проверяем вход
+          </h1>
+        </section>
+      </main>
+    );
+  }
+
+  if (authErrorMessage) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-[#f5f7fb] px-4 text-slate-950">
+        <section className="w-full max-w-md rounded-lg border border-rose-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-rose-700">
+            {authErrorMessage}
+          </p>
+          <button
+            className="mt-4 h-10 rounded-md bg-slate-950 px-4 text-sm font-medium text-white"
+            onClick={() => router.replace("/login")}
+            type="button"
+          >
+            Перейти ко входу
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500">AIJ Project Console</p>
+            <p className="text-sm font-medium text-slate-500">
+              AIJ Project Console
+            </p>
             <h1 className="mt-1 text-2xl font-semibold text-slate-950 sm:text-3xl">
               Реестр AIJ-проектов
             </h1>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium text-slate-800">Dariya</p>
-              <p className="text-xs text-slate-500">admin</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 text-left sm:text-right">
+              <p className="truncate text-sm font-medium text-slate-800">
+                {userEmail}
+              </p>
+              <p className="text-xs text-slate-500">пользователь Supabase</p>
             </div>
-            <div className="grid size-10 place-items-center rounded-full bg-slate-900 text-sm font-semibold text-white">
-              DS
-            </div>
+            <button
+              className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-400"
+              disabled={isSigningOut}
+              onClick={handleSignOut}
+              type="button"
+            >
+              {isSigningOut ? "Выходим..." : "Выйти"}
+            </button>
           </div>
         </header>
 
@@ -82,8 +191,12 @@ export default function DashboardPage() {
                   className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
                   key={card.label}
                 >
-                  <p className="text-sm font-medium text-slate-500">{card.label}</p>
-                  <p className="mt-3 text-3xl font-semibold text-slate-950">{card.value}</p>
+                  <p className="text-sm font-medium text-slate-500">
+                    {card.label}
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold text-slate-950">
+                    {card.value}
+                  </p>
                   <p className="mt-2 text-sm text-slate-500">{card.detail}</p>
                 </article>
               ))}
@@ -134,7 +247,9 @@ export default function DashboardPage() {
             <section className="flex flex-col gap-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-950">Проекты</h2>
+                  <h2 className="text-xl font-semibold text-slate-950">
+                    Проекты
+                  </h2>
                   <p className="mt-1 text-sm text-slate-500">
                     Основной реестр скрывает архивные проекты по умолчанию.
                   </p>
@@ -170,10 +285,12 @@ export default function DashboardPage() {
               </div>
 
               <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
-                <p className="text-base font-semibold text-slate-950">Проекты не загружены</p>
+                <p className="text-base font-semibold text-slate-950">
+                  Проекты не загружены
+                </p>
                 <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-                  Следующий этап подготовит подключение к Supabase и структуру данных для
-                  импорта CSV/XLSX.
+                  Следующий этап подготовит структуру данных для импорта
+                  CSV/XLSX.
                 </p>
               </div>
             </section>
