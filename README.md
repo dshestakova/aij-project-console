@@ -84,6 +84,18 @@ SUPABASE_SECRET_KEY=
 
 Only `NEXT_PUBLIC_*` values may be exposed to the browser. `SUPABASE_SECRET_KEY` is reserved for future server-side work and must never be committed or sent in chat.
 
+## Supabase Auth
+
+Access is private. Users are created manually by an admin in Supabase Auth; the app does not expose public registration.
+
+To create a test user:
+
+1. Open Supabase Dashboard.
+2. Go to Authentication -> Users.
+3. Click Add user.
+4. Enter the user's email and password.
+5. Use that email and password on `/login`.
+
 ## Workflow
 
 - `main` stays stable.
