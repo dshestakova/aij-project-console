@@ -26,6 +26,11 @@ type ProjectDetailRow = ProjectListRow & {
   funding: string | null;
   funding_status: string | null;
   comment: string | null;
+  flagship_description_uploaded: boolean | null;
+  flagship_passport_uploaded: boolean | null;
+  flagship_innovation_level: ProjectDetail["flagship_innovation_level"];
+  flagship_uploaded_to_prbr: boolean | null;
+  flagship_approved_by_ca: boolean | null;
   csm: ProjectDetail["csm"];
   director: ProjectDetail["director"];
   industry_unit: ProjectDetail["industry_unit"];
@@ -56,6 +61,12 @@ function normalizeProjectDetail(row: ProjectDetailRow): ProjectDetail {
     funding: row.funding,
     funding_status: row.funding_status,
     comment: row.comment,
+    flagship_description_uploaded:
+      row.flagship_description_uploaded ?? false,
+    flagship_passport_uploaded: row.flagship_passport_uploaded ?? false,
+    flagship_innovation_level: row.flagship_innovation_level,
+    flagship_uploaded_to_prbr: row.flagship_uploaded_to_prbr ?? false,
+    flagship_approved_by_ca: row.flagship_approved_by_ca ?? false,
     csm: normalizeRelation(row.csm),
     director: normalizeRelation(row.director),
     industry_unit: normalizeRelation(row.industry_unit),
@@ -134,6 +145,11 @@ export async function getProjectDetail(
         funding,
         funding_status,
         comment,
+        flagship_description_uploaded,
+        flagship_passport_uploaded,
+        flagship_innovation_level,
+        flagship_uploaded_to_prbr,
+        flagship_approved_by_ca,
         updated_at,
         cluster:clusters(id, name, color_key, sort_order),
         status:project_statuses(id, name, color_key, sort_order),

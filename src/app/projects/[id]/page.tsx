@@ -67,14 +67,14 @@ export default async function ProjectDetailPage({
                       {project.cluster.name}
                     </Badge>
                   ) : (
-                    <Badge>Кластер не указан</Badge>
+                    <Badge>Без кластера</Badge>
                   )}
                   {project.status ? (
                     <Badge colorKey={project.status.color_key}>
                       {project.status.name}
                     </Badge>
                   ) : (
-                    <Badge>Статус не указан</Badge>
+                    <Badge>Без статуса</Badge>
                   )}
                   {project.is_flagship ? (
                     <Badge colorKey="indigo">Флагман</Badge>
@@ -102,10 +102,20 @@ export default async function ProjectDetailPage({
                       ["Внешний ID", project.external_id],
                       ["Клиент", project.client],
                       ["Название проекта", project.project_name],
-                      ["Флагманский статус", project.flagship_status?.name],
+                      ["Основной статус", project.status?.name ?? "Без статуса"],
+                      ["Кластер", project.cluster?.name ?? "Без кластера"],
                       ["Обновлено", formatDateTime(project.updated_at)],
                     ]}
                     title="Паспорт проекта"
+                  />
+                  <FlagshipCard
+                    approvedByCa={project.flagship_approved_by_ca}
+                    descriptionUploaded={project.flagship_description_uploaded}
+                    innovationLevel={project.flagship_innovation_level}
+                    isFlagship={project.is_flagship}
+                    passportUploaded={project.flagship_passport_uploaded}
+                    status={project.flagship_status?.name}
+                    uploadedToPrbr={project.flagship_uploaded_to_prbr}
                   />
                   <InfoCard
                     rows={[
@@ -141,6 +151,39 @@ export default async function ProjectDetailPage({
       </div>
     </main>
   );
+}
+
+function FlagshipCard({
+  approvedByCa,
+  descriptionUploaded,
+  innovationLevel,
+  isFlagship,
+  passportUploaded,
+  status,
+  uploadedToPrbr,
+}: {
+  approvedByCa: boolean;
+  descriptionUploaded: boolean;
+  innovationLevel: string | null;
+  isFlagship: boolean;
+  passportUploaded: boolean;
+  status: string | null | undefined;
+  uploadedToPrbr: boolean;
+}) {
+  const rows: Array<[string, string]> = [
+    ["Флагман", isFlagship ? "да" : "нет"],
+    ["Описание", descriptionUploaded ? "загружено" : "не загружено"],
+    ["Инновационность", innovationLevel ?? "не указано"],
+    ["Паспорт", passportUploaded ? "загружен" : "не загружен"],
+    ["Загружен на ПРБР", uploadedToPrbr ? "да" : "нет"],
+    ["Одобрен ЦА", approvedByCa ? "да" : "нет"],
+  ];
+
+  if (status) {
+    rows.splice(4, 0, ["Статус", status]);
+  }
+
+  return <InfoCard rows={rows} title="Флагманский проект" />;
 }
 
 function DetailBlock({
