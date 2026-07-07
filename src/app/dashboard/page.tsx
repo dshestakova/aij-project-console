@@ -93,6 +93,7 @@ export default async function DashboardPage() {
             <DistributionPanel
               description="Активные проекты по текущим статусам. Пустые значения показаны отдельно."
               emptyLabel="Активных проектов пока нет."
+              filterParam="status"
               items={statusDistribution}
               totalLabel="Активных"
               title="Распределение по статусам"
@@ -100,6 +101,7 @@ export default async function DashboardPage() {
             <DistributionPanel
               description="Активные проекты по кластерам. Архив учитывается отдельно в верхних карточках."
               emptyLabel="Активных проектов пока нет."
+              filterParam="cluster"
               items={clusterDistribution}
               totalLabel="Активных"
               title="Распределение по кластерам"
@@ -158,6 +160,7 @@ type DistributionItem = {
   name: string;
   color_key?: ColorKey | null;
   count: number;
+  filterValue: string;
 };
 
 const canonicalStatuses: Array<Pick<DistributionItem, "name" | "color_key">> = [
@@ -185,6 +188,7 @@ function getStatusDistribution(
         (project) =>
           project.status?.name.toLowerCase() === status.name.toLowerCase(),
       ).length,
+      filterValue: reference?.id ?? status.name,
     };
   });
 
@@ -201,6 +205,7 @@ function getStatusDistribution(
       ...reference,
       count: projects.filter((project) => project.status?.id === reference.id)
         .length,
+      filterValue: reference.id,
     }));
 
   const missingCount = projects.filter((project) => !project.status).length;
@@ -213,6 +218,7 @@ function getStatusDistribution(
       name: "Без статуса",
       color_key: "gray",
       count: missingCount,
+      filterValue: "__none",
     },
   ]);
 }
@@ -227,6 +233,7 @@ function getClusterDistribution(
       color_key: getClusterColorKey(reference.name, reference.color_key),
       count: projects.filter((project) => project.cluster?.id === reference.id)
         .length,
+      filterValue: reference.id,
     }))
     .filter((item) => item.count > 0);
   const knownClusterIds = new Set(references.map((reference) => reference.id));
@@ -251,6 +258,7 @@ function getClusterDistribution(
           ...cluster,
           color_key: getClusterColorKey(cluster.name, cluster.color_key),
           count: 1,
+          filterValue: cluster.id,
         });
       }
 
@@ -266,6 +274,7 @@ function getClusterDistribution(
       name: "Без кластера",
       color_key: "gray",
       count: missingCount,
+      filterValue: "__none",
     },
   ]);
 }
@@ -302,12 +311,14 @@ function getProjectCountLabel(count: number) {
 function DistributionPanel({
   description,
   emptyLabel,
+  filterParam,
   items,
   title,
   totalLabel,
 }: {
   description: string;
   emptyLabel: string;
+  filterParam: "cluster" | "status";
   items: DistributionItem[];
   title: string;
   totalLabel: string;
@@ -337,15 +348,25 @@ function DistributionPanel({
         {total === 0 ? (
           <span className="h-full w-full bg-slate-200" />
         ) : (
-          visibleItems.map((item) => (
-            <span
-              aria-label={`${item.name} — ${getProjectCountLabel(item.count)}`}
-              className={`h-full min-w-1 ${getChartTone(item.color_key)}`}
-              key={item.id}
-              style={{ width: `${(item.count / total) * 100}%` }}
-              title={`${item.name} — ${getProjectCountLabel(item.count)}`}
-            />
-          ))
+          visibleItems.map((item) => {
+            const label = `${item.name} — ${getProjectCountLabel(item.count)}`;
+            const href = `/projects?${filterParam}=${encodeURIComponent(
+              item.filterValue,
+            )}`;
+
+            return (
+              <Link
+                aria-label={label}
+                className={`h-full min-w-1 cursor-pointer transition hover:brightness-95 hover:ring-2 hover:ring-white/80 focus:outline-none focus:ring-2 focus:ring-slate-500 ${getChartTone(
+                  item.color_key,
+                )}`}
+                href={href}
+                key={item.id}
+                style={{ width: `${(item.count / total) * 100}%` }}
+                title={label}
+              />
+            );
+          })
         )}
       </div>
 

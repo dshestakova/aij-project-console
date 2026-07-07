@@ -9,18 +9,29 @@ type ProjectsRegistryProps = {
   projects: ProjectListItem[];
   statuses: ReferenceItem[];
   clusters: ReferenceItem[];
+  initialFilters?: {
+    statusId?: string;
+    clusterId?: string;
+    flagship?: string;
+    archiveMode?: string;
+  };
 };
 
 export function ProjectsRegistry({
   clusters,
+  initialFilters,
   projects,
   statuses,
 }: ProjectsRegistryProps) {
   const [query, setQuery] = useState("");
-  const [statusId, setStatusId] = useState("all");
-  const [clusterId, setClusterId] = useState("all");
-  const [flagship, setFlagship] = useState("all");
-  const [archiveMode, setArchiveMode] = useState("active");
+  const [statusId, setStatusId] = useState(initialFilters?.statusId ?? "all");
+  const [clusterId, setClusterId] = useState(
+    initialFilters?.clusterId ?? "all",
+  );
+  const [flagship, setFlagship] = useState(initialFilters?.flagship ?? "all");
+  const [archiveMode, setArchiveMode] = useState(
+    initialFilters?.archiveMode ?? "active",
+  );
 
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -34,11 +45,27 @@ export function ProjectsRegistry({
         return false;
       }
 
-      if (statusId !== "all" && project.status?.id !== statusId) {
+      if (statusId === "__none" && project.status) {
         return false;
       }
 
-      if (clusterId !== "all" && project.cluster?.id !== clusterId) {
+      if (
+        statusId !== "all" &&
+        statusId !== "__none" &&
+        project.status?.id !== statusId
+      ) {
+        return false;
+      }
+
+      if (clusterId === "__none" && project.cluster) {
+        return false;
+      }
+
+      if (
+        clusterId !== "all" &&
+        clusterId !== "__none" &&
+        project.cluster?.id !== clusterId
+      ) {
         return false;
       }
 
@@ -74,6 +101,8 @@ export function ProjectsRegistry({
     clusterId !== "all" ||
     flagship !== "all" ||
     archiveMode !== "active";
+  const hasProjectsWithoutStatus = projects.some((project) => !project.status);
+  const hasProjectsWithoutCluster = projects.some((project) => !project.cluster);
 
   return (
     <section className="flex flex-col gap-4">
@@ -92,12 +121,22 @@ export function ProjectsRegistry({
 
           <FilterSelect
             label="Статус"
+            missingLabel={
+              hasProjectsWithoutStatus || statusId === "__none"
+                ? "Без статуса"
+                : undefined
+            }
             onChange={setStatusId}
             options={statuses}
             value={statusId}
           />
           <FilterSelect
             label="Кластер"
+            missingLabel={
+              hasProjectsWithoutCluster || clusterId === "__none"
+                ? "Без кластера"
+                : undefined
+            }
             onChange={setClusterId}
             options={clusters}
             value={clusterId}
@@ -156,11 +195,13 @@ export function ProjectsRegistry({
 
 function FilterSelect({
   label,
+  missingLabel,
   onChange,
   options,
   value,
 }: {
   label: string;
+  missingLabel?: string;
   onChange: (value: string) => void;
   options: ReferenceItem[];
   value: string;
@@ -174,6 +215,7 @@ function FilterSelect({
         value={value}
       >
         <option value="all">Все</option>
+        {missingLabel ? <option value="__none">{missingLabel}</option> : null}
         {options.map((option) => (
           <option key={option.id} value={option.id}>
             {option.name}
