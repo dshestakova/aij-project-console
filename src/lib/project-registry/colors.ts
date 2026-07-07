@@ -24,10 +24,26 @@ const accentByColor: Record<string, string> = {
   violet: "border-l-violet-300",
 };
 
+const chartToneByColor: Record<string, string> = {
+  amber: "bg-amber-400",
+  blue: "bg-sky-400",
+  cyan: "bg-cyan-400",
+  gray: "bg-slate-300",
+  green: "bg-emerald-400",
+  indigo: "bg-indigo-400",
+  rose: "bg-rose-400",
+  slate: "bg-slate-400",
+  violet: "bg-violet-400",
+};
+
 export function getBadgeTone(colorKey: ColorKey | null | undefined) {
   return badgeToneByColor[colorKey ?? ""] ?? badgeToneByColor.gray;
 }
 
 export function getAccentTone(colorKey: ColorKey | null | undefined) {
   return accentByColor[colorKey ?? ""] ?? accentByColor.gray;
+}
+
+export function getChartTone(colorKey: ColorKey | null | undefined) {
+  return chartToneByColor[colorKey ?? ""] ?? chartToneByColor.gray;
 }

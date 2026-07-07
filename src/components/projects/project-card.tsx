@@ -11,19 +11,17 @@ type ProjectCardProps = {
 
 export function ProjectCard({ project }: ProjectCardProps) {
   return (
-    <article
-      className={`rounded-lg border border-l-4 border-slate-200 bg-white p-4 shadow-sm ${getAccentTone(
+    <Link
+      className={`group block rounded-lg border border-l-4 border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-300 ${getAccentTone(
         project.cluster?.color_key,
       )}`}
+      href={`/projects/${project.id}`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <Link
-            className="text-sm font-semibold text-slate-950 transition hover:text-slate-600"
-            href={`/projects/${project.id}`}
-          >
+          <p className="text-sm font-semibold text-slate-950 transition group-hover:text-slate-600">
             {project.external_id}
-          </Link>
+          </p>
           <h2 className="mt-1 text-lg font-semibold text-slate-950">
             {getDisplayValue(project.project_name)}
           </h2>
@@ -64,6 +62,13 @@ export function ProjectCard({ project }: ProjectCardProps) {
           {getPreview(project.next_step)}
         </p>
       </div>
-    </article>
+
+      <div className="mt-4 flex items-center justify-between gap-3 text-sm font-medium text-slate-700">
+        <span>Открыть проект</span>
+        <span aria-hidden="true" className="transition group-hover:translate-x-1">
+          -&gt;
+        </span>
+      </div>
+    </Link>
   );
 }
