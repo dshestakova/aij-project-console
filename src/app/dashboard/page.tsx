@@ -3,7 +3,11 @@ import Link from "next/link";
 import { UserHeader } from "@/components/auth/user-header";
 import { Badge } from "@/components/projects/badge";
 import { ProjectCard } from "@/components/projects/project-card";
-import { getBadgeTone, getChartTone } from "@/lib/project-registry/colors";
+import {
+  getBadgeTone,
+  getChartTone,
+  getClusterColorKey,
+} from "@/lib/project-registry/colors";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProjectRegistryData } from "@/lib/supabase/project-registry";
 import type {
@@ -176,7 +180,7 @@ function getStatusDistribution(
     return {
       id: reference?.id ?? `status-${status.name}`,
       name: reference?.name ?? status.name,
-      color_key: reference?.color_key ?? status.color_key,
+      color_key: status.color_key,
       count: projects.filter(
         (project) =>
           project.status?.name.toLowerCase() === status.name.toLowerCase(),
@@ -201,7 +205,7 @@ function getStatusDistribution(
 
   const missingCount = projects.filter((project) => !project.status).length;
 
-  return [
+  return sortDistributionItems([
     ...items,
     ...extraStatuses,
     {
@@ -210,7 +214,7 @@ function getStatusDistribution(
       color_key: "gray",
       count: missingCount,
     },
-  ];
+  ]);
 }
 
 function getClusterDistribution(
@@ -220,6 +224,7 @@ function getClusterDistribution(
   const items = references
     .map((reference) => ({
       ...reference,
+      color_key: getClusterColorKey(reference.name, reference.color_key),
       count: projects.filter((project) => project.cluster?.id === reference.id)
         .length,
     }))
@@ -242,14 +247,18 @@ function getClusterDistribution(
       if (existing) {
         existing.count += 1;
       } else {
-        items.push({ ...cluster, count: 1 });
+        items.push({
+          ...cluster,
+          color_key: getClusterColorKey(cluster.name, cluster.color_key),
+          count: 1,
+        });
       }
 
       return items;
     }, []);
   const missingCount = projects.filter((project) => !project.cluster).length;
 
-  return [
+  return sortDistributionItems([
     ...items,
     ...unknownClusterItems,
     {
@@ -258,7 +267,36 @@ function getClusterDistribution(
       color_key: "gray",
       count: missingCount,
     },
-  ];
+  ]);
+}
+
+function sortDistributionItems(items: DistributionItem[]) {
+  return [...items].sort((first, second) => {
+    if (second.count !== first.count) {
+      return second.count - first.count;
+    }
+
+    return first.name.localeCompare(second.name, "ru");
+  });
+}
+
+function getProjectCountLabel(count: number) {
+  const lastTwoDigits = count % 100;
+  const lastDigit = count % 10;
+
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
+    return `${count} проектов`;
+  }
+
+  if (lastDigit === 1) {
+    return `${count} проект`;
+  }
+
+  if (lastDigit >= 2 && lastDigit <= 4) {
+    return `${count} проекта`;
+  }
+
+  return `${count} проектов`;
 }
 
 function DistributionPanel({
@@ -301,10 +339,11 @@ function DistributionPanel({
         ) : (
           visibleItems.map((item) => (
             <span
+              aria-label={`${item.name} — ${getProjectCountLabel(item.count)}`}
               className={`h-full min-w-1 ${getChartTone(item.color_key)}`}
               key={item.id}
               style={{ width: `${(item.count / total) * 100}%` }}
-              title={`${item.name}: ${item.count}`}
+              title={`${item.name} — ${getProjectCountLabel(item.count)}`}
             />
           ))
         )}
