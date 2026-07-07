@@ -19,8 +19,14 @@ export default async function ProjectDetailPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const { changes, currentProfile, errorMessage, project, references } =
-    await getProjectDetailPageData(id);
+  const {
+    changes,
+    currentPassport,
+    currentProfile,
+    errorMessage,
+    project,
+    references,
+  } = await getProjectDetailPageData(id);
   const canEdit =
     currentProfile?.role === "admin" || currentProfile?.role === "editor";
 
@@ -47,6 +53,7 @@ export default async function ProjectDetailPage({
             <ProjectDetailEditor
               canEdit={canEdit}
               changes={changes}
+              currentPassport={currentPassport}
               project={project}
               references={references}
             />

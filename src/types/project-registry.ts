@@ -45,6 +45,7 @@ export type ProjectListItem = {
   project_name: string | null;
   is_flagship: boolean;
   is_archived: boolean;
+  flagship_passport_uploaded: boolean;
   next_step: string | null;
   updated_at: string;
   cluster_id: string | null;
@@ -94,6 +95,22 @@ export type ProjectChangeItem = {
   old_value: string | null;
   new_value: string | null;
   source: string | null;
+  profile: ProfileReference | null;
+};
+
+export type ProjectFileItem = {
+  id: string;
+  project_id: string;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+  file_type: string;
+  version_number: number | null;
+  is_current: boolean;
+  description: string | null;
   profile: ProfileReference | null;
 };
 
