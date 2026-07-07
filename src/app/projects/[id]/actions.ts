@@ -23,7 +23,9 @@ export type ProjectEditInput = {
   is_archived: boolean;
   is_flagship: boolean;
   flagship_status_id: string;
-  flagship_description_uploaded: boolean;
+  flagship_problem_description: string;
+  flagship_solution_description: string;
+  flagship_ai_functionality: string;
   flagship_passport_uploaded: boolean;
   flagship_innovation_level: string;
   flagship_uploaded_to_prbr: boolean;
@@ -54,6 +56,9 @@ type EditableProjectRow = {
   is_archived: boolean;
   is_flagship: boolean;
   flagship_status_id: string | null;
+  flagship_problem_description: string | null;
+  flagship_solution_description: string | null;
+  flagship_ai_functionality: string | null;
   flagship_description_uploaded: boolean | null;
   flagship_passport_uploaded: boolean | null;
   flagship_innovation_level: ProjectDetail["flagship_innovation_level"];
@@ -118,6 +123,9 @@ export async function updateProjectAction(
         is_archived,
         is_flagship,
         flagship_status_id,
+        flagship_problem_description,
+        flagship_solution_description,
+        flagship_ai_functionality,
         flagship_description_uploaded,
         flagship_passport_uploaded,
         flagship_innovation_level,
@@ -150,7 +158,7 @@ export async function updateProjectAction(
   const row = original as EditableProjectRow;
 
   function addChange<K extends keyof EditableProjectRow>(
-    fieldName: keyof ProjectEditInput,
+    fieldName: string,
     column: K,
     newValue: EditableProjectRow[K],
     oldDisplay = displayValue(row[column]),
@@ -223,6 +231,21 @@ export async function updateProjectAction(
     nextFlagshipStatusId,
     displayReference(row.flagship_status_id, referenceLabels.flagshipStatuses),
     displayReference(nextFlagshipStatusId, referenceLabels.flagshipStatuses),
+  );
+  addChange(
+    "flagship_problem_description",
+    "flagship_problem_description",
+    normalized.flagship_problem_description,
+  );
+  addChange(
+    "flagship_solution_description",
+    "flagship_solution_description",
+    normalized.flagship_solution_description,
+  );
+  addChange(
+    "flagship_ai_functionality",
+    "flagship_ai_functionality",
+    normalized.flagship_ai_functionality,
   );
   addChange(
     "flagship_description_uploaded",
@@ -330,7 +353,18 @@ function normalizeInput(input: ProjectEditInput): EditableProjectRow {
     is_archived: input.is_archived,
     is_flagship: isFlagship,
     flagship_status_id: isFlagship ? nullableId(input.flagship_status_id) : null,
-    flagship_description_uploaded: input.flagship_description_uploaded,
+    flagship_problem_description: nullableText(
+      input.flagship_problem_description,
+    ),
+    flagship_solution_description: nullableText(
+      input.flagship_solution_description,
+    ),
+    flagship_ai_functionality: nullableText(input.flagship_ai_functionality),
+    flagship_description_uploaded:
+      isFlagship &&
+      Boolean(input.flagship_problem_description.trim()) &&
+      Boolean(input.flagship_solution_description.trim()) &&
+      Boolean(input.flagship_ai_functionality.trim()),
     flagship_passport_uploaded: input.flagship_passport_uploaded,
     flagship_innovation_level: normalizeInnovationLevel(
       input.flagship_innovation_level,

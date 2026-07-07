@@ -42,6 +42,9 @@ const fieldLabels: Record<string, string> = {
   is_archived: "Архив",
   is_flagship: "Флагман",
   flagship_status_id: "Статус флагмана",
+  flagship_problem_description: "Описание проблемы",
+  flagship_solution_description: "Описание решения",
+  flagship_ai_functionality: "Ключевой функционал ИИ",
   flagship_description_uploaded: "Описание загружено",
   flagship_passport_uploaded: "Паспорт загружен",
   flagship_innovation_level: "Инновационность",
@@ -210,7 +213,7 @@ function ProjectReadOnlyView({ project }: { project: ProjectDetail }) {
         />
         <FlagshipCard
           approvedByCa={project.flagship_approved_by_ca}
-          descriptionUploaded={project.flagship_description_uploaded}
+          descriptionUploaded={getProjectDescriptionUploaded(project)}
           innovationLevel={project.flagship_innovation_level}
           isFlagship={project.is_flagship}
           passportUploaded={project.flagship_passport_uploaded}
@@ -250,9 +253,11 @@ function ProjectEditForm({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   references: ProjectEditReferences;
 }) {
+  const isDescriptionUploaded = getIsDescriptionUploaded(form);
+
   return (
     <form className="flex flex-col gap-4" onSubmit={onSubmit}>
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <CollapsibleSection defaultOpen title="Основная информация">
         <div className="grid gap-4 lg:grid-cols-3">
           <TextField
             label="Внешний ID"
@@ -311,9 +316,10 @@ function ProjectEditForm({
             onChange={(value) => onChange("is_archived", value)}
           />
         </div>
-      </section>
+      </CollapsibleSection>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <CollapsibleSection defaultOpen title="Описание и ход проекта">
+        <div className="grid gap-4 lg:grid-cols-2">
         <TextareaField
           label="Суть проекта"
           onChange={(value) => onChange("essence", value)}
@@ -334,30 +340,42 @@ function ProjectEditForm({
           onChange={(value) => onChange("comment", value)}
           value={form.comment}
         />
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection defaultOpen title="Финансирование">
+        <div className="grid gap-4 lg:grid-cols-2">
         <TextareaField
-          label="Статус финансирования"
+          label="Статус"
           onChange={(value) => onChange("funding_status", value)}
           value={form.funding_status}
         />
         <TextareaField
-          label="Комментарий по финансированию"
+          label="Комментарий"
           onChange={(value) => onChange("funding", value)}
           value={form.funding}
         />
-      </section>
+        </div>
+      </CollapsibleSection>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-950">
-          Флагманский проект
-        </h3>
-        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      <CollapsibleSection defaultOpen title="Флагманский проект">
+        <div className="grid gap-4 lg:grid-cols-3">
           <CheckboxField
             checked={form.is_flagship}
             label="Флагман"
             onChange={(value) => onChange("is_flagship", value)}
           />
+          <StatusIndicator
+            active={isDescriptionUploaded}
+            activeLabel="Описание загружено"
+            inactiveLabel="Описание не загружено"
+          />
+        </div>
+
+        {form.is_flagship ? (
+          <div className="mt-4 flex flex-col gap-4">
+            <div className="grid gap-4 lg:grid-cols-3">
           <ReferenceSelect
-            disabled={!form.is_flagship}
             emptyLabel="Не указано"
             label="Статус флагмана"
             onChange={(value) => onChange("flagship_status_id", value)}
@@ -382,17 +400,11 @@ function ProjectEditForm({
             </select>
           </label>
           <CheckboxField
-            checked={form.flagship_description_uploaded}
-            label="Описание загружено"
-            onChange={(value) =>
-              onChange("flagship_description_uploaded", value)
-            }
-          />
-          <CheckboxField
             checked={form.flagship_passport_uploaded}
             label="Паспорт загружен"
             onChange={(value) => onChange("flagship_passport_uploaded", value)}
           />
+          {/* Later this should be connected to project file upload / passport document attachment. */}
           <CheckboxField
             checked={form.flagship_uploaded_to_prbr}
             label="Загружен на ПРБР"
@@ -403,8 +415,42 @@ function ProjectEditForm({
             label="Одобрен ЦА"
             onChange={(value) => onChange("flagship_approved_by_ca", value)}
           />
-        </div>
-      </section>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3">
+              <TextareaField
+                label="Описание проблемы"
+                onChange={(value) =>
+                  onChange("flagship_problem_description", value)
+                }
+                placeholder="Какую бизнес-проблему решает проект?"
+                value={form.flagship_problem_description}
+              />
+              <TextareaField
+                label="Описание решения"
+                onChange={(value) =>
+                  onChange("flagship_solution_description", value)
+                }
+                placeholder="Как именно проблема решается с помощью AI?"
+                value={form.flagship_solution_description}
+              />
+              <TextareaField
+                label="Ключевой функционал ИИ"
+                onChange={(value) =>
+                  onChange("flagship_ai_functionality", value)
+                }
+                placeholder="Какие ИИ-функции используются: предсказание, классификация, генерация и т.д."
+                value={form.flagship_ai_functionality}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-500">
+            Флагманские поля скрыты. Чтобы заполнить описание, статус и
+            дополнительные признаки, включите флагманский режим.
+          </p>
+        )}
+      </CollapsibleSection>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
         <button
@@ -581,10 +627,12 @@ function TextField({
 function TextareaField({
   label,
   onChange,
+  placeholder,
   value,
 }: {
   label: string;
   onChange: (value: string) => void;
+  placeholder?: string;
   value: string;
 }) {
   return (
@@ -593,6 +641,7 @@ function TextareaField({
       <textarea
         className="mt-3 min-h-32 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
         onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
         value={value}
       />
     </label>
@@ -688,6 +737,50 @@ function CheckboxField({
   );
 }
 
+function CollapsibleSection({
+  children,
+  defaultOpen,
+  title,
+}: {
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  title: string;
+}) {
+  return (
+    <details
+      className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+      open={defaultOpen}
+    >
+      <summary className="cursor-pointer select-none text-lg font-semibold text-slate-950 marker:text-slate-400">
+        {title}
+      </summary>
+      <div className="mt-4">{children}</div>
+    </details>
+  );
+}
+
+function StatusIndicator({
+  active,
+  activeLabel,
+  inactiveLabel,
+}: {
+  active: boolean;
+  activeLabel: string;
+  inactiveLabel: string;
+}) {
+  return (
+    <div
+      className={`flex min-h-11 items-center rounded-md border px-3 py-2 text-sm font-medium ${
+        active
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "border-slate-200 bg-slate-50 text-slate-600"
+      }`}
+    >
+      {active ? activeLabel : inactiveLabel}
+    </div>
+  );
+}
+
 function getInitialForm(project: ProjectDetail): ProjectEditInput {
   return {
     external_id: project.external_id,
@@ -707,12 +800,30 @@ function getInitialForm(project: ProjectDetail): ProjectEditInput {
     is_archived: project.is_archived,
     is_flagship: project.is_flagship,
     flagship_status_id: project.flagship_status_id ?? "",
-    flagship_description_uploaded: project.flagship_description_uploaded,
+    flagship_problem_description: project.flagship_problem_description ?? "",
+    flagship_solution_description: project.flagship_solution_description ?? "",
+    flagship_ai_functionality: project.flagship_ai_functionality ?? "",
     flagship_passport_uploaded: project.flagship_passport_uploaded,
     flagship_innovation_level: project.flagship_innovation_level ?? "",
     flagship_uploaded_to_prbr: project.flagship_uploaded_to_prbr,
     flagship_approved_by_ca: project.flagship_approved_by_ca,
   };
+}
+
+function getIsDescriptionUploaded(form: ProjectEditInput) {
+  return (
+    form.flagship_problem_description.trim().length > 0 &&
+    form.flagship_solution_description.trim().length > 0 &&
+    form.flagship_ai_functionality.trim().length > 0
+  );
+}
+
+function getProjectDescriptionUploaded(project: ProjectDetail) {
+  return (
+    Boolean(project.flagship_problem_description?.trim()) &&
+    Boolean(project.flagship_solution_description?.trim()) &&
+    Boolean(project.flagship_ai_functionality?.trim())
+  );
 }
 
 function groupChanges(changes: ProjectChangeItem[]) {

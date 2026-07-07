@@ -61,6 +61,9 @@ export type ProjectDetail = ProjectListItem & {
   funding: string | null;
   funding_status: string | null;
   comment: string | null;
+  flagship_problem_description: string | null;
+  flagship_solution_description: string | null;
+  flagship_ai_functionality: string | null;
   flagship_description_uploaded: boolean;
   flagship_passport_uploaded: boolean;
   flagship_innovation_level: "высокий" | "средний" | "низкий" | null;

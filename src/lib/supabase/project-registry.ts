@@ -32,6 +32,9 @@ type ProjectDetailRow = ProjectListRow & {
   funding: string | null;
   funding_status: string | null;
   comment: string | null;
+  flagship_problem_description: string | null;
+  flagship_solution_description: string | null;
+  flagship_ai_functionality: string | null;
   flagship_description_uploaded: boolean | null;
   flagship_passport_uploaded: boolean | null;
   flagship_innovation_level: ProjectDetail["flagship_innovation_level"];
@@ -74,6 +77,9 @@ function normalizeProjectDetail(row: ProjectDetailRow): ProjectDetail {
     funding: row.funding,
     funding_status: row.funding_status,
     comment: row.comment,
+    flagship_problem_description: row.flagship_problem_description,
+    flagship_solution_description: row.flagship_solution_description,
+    flagship_ai_functionality: row.flagship_ai_functionality,
     flagship_description_uploaded:
       row.flagship_description_uploaded ?? false,
     flagship_passport_uploaded: row.flagship_passport_uploaded ?? false,
@@ -167,6 +173,9 @@ export async function getProjectDetail(
         funding,
         funding_status,
         comment,
+        flagship_problem_description,
+        flagship_solution_description,
+        flagship_ai_functionality,
         flagship_description_uploaded,
         flagship_passport_uploaded,
         flagship_innovation_level,
