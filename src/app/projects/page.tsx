@@ -2,10 +2,16 @@ import { UserHeader } from "@/components/auth/user-header";
 import { ProjectsRegistry } from "@/components/projects/projects-registry";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProjectRegistryData } from "@/lib/supabase/project-registry";
+import type { ReferenceItem } from "@/types/project-registry";
+
+type ProjectsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
+  const params = await searchParams;
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -46,6 +52,14 @@ export default async function ProjectsPage() {
 
           <ProjectsRegistry
             clusters={clusters}
+            initialFilters={{
+              archiveMode: resolveArchiveFilter(
+                params.archived ?? params.archive,
+              ),
+              clusterId: resolveReferenceFilter(params.cluster, clusters),
+              flagship: resolveFlagshipFilter(params.flagship),
+              statusId: resolveReferenceFilter(params.status, statuses),
+            }}
             projects={projects}
             statuses={statuses}
           />
@@ -53,4 +67,44 @@ export default async function ProjectsPage() {
       </div>
     </main>
   );
+}
+
+function getFirstSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function resolveReferenceFilter(
+  value: string | string[] | undefined,
+  references: ReferenceItem[],
+) {
+  const rawValue = getFirstSearchParam(value)?.trim();
+
+  if (!rawValue) {
+    return "all";
+  }
+
+  if (rawValue === "__none") {
+    return rawValue;
+  }
+
+  const normalizedValue = rawValue.toLowerCase();
+  const matchedReference = references.find(
+    (reference) =>
+      reference.id === rawValue ||
+      reference.name.trim().toLowerCase() === normalizedValue,
+  );
+
+  return matchedReference?.id ?? "all";
+}
+
+function resolveFlagshipFilter(value: string | string[] | undefined) {
+  const rawValue = getFirstSearchParam(value)?.trim().toLowerCase();
+
+  return rawValue === "yes" || rawValue === "no" ? rawValue : "all";
+}
+
+function resolveArchiveFilter(value: string | string[] | undefined) {
+  const rawValue = getFirstSearchParam(value)?.trim().toLowerCase();
+
+  return rawValue === "all" || rawValue === "archived" ? rawValue : "active";
 }
