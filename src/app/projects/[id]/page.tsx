@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
 import { UserHeader } from "@/components/auth/user-header";
 import { Badge } from "@/components/projects/badge";
@@ -22,10 +21,6 @@ export default async function ProjectDetailPage({
     data: { user },
   } = await supabase.auth.getUser();
   const { errorMessage, project } = await getProjectDetail(id);
-
-  if (!project && !errorMessage) {
-    notFound();
-  }
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
@@ -104,6 +99,16 @@ export default async function ProjectDetailPage({
                 <aside className="flex flex-col gap-4">
                   <InfoCard
                     rows={[
+                      ["Внешний ID", project.external_id],
+                      ["Клиент", project.client],
+                      ["Название проекта", project.project_name],
+                      ["Флагманский статус", project.flagship_status?.name],
+                      ["Обновлено", formatDateTime(project.updated_at)],
+                    ]}
+                    title="Паспорт проекта"
+                  />
+                  <InfoCard
+                    rows={[
                       ["Финансирование", project.funding],
                       ["Статус финансирования", project.funding_status],
                       ["CSM", project.csm?.full_name],
@@ -115,7 +120,23 @@ export default async function ProjectDetailPage({
                 </aside>
               </section>
             </>
-          ) : null}
+          ) : errorMessage ? null : (
+            <section className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
+              <p className="text-base font-semibold text-slate-950">
+                Проект не найден
+              </p>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                Не удалось найти проект с таким идентификатором. Возможно, он
+                был удален, перемещен в другой реестр или ссылка устарела.
+              </p>
+              <Link
+                className="mt-5 inline-flex h-10 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+                href="/projects"
+              >
+                Вернуться к проектам
+              </Link>
+            </section>
+          )}
         </section>
       </div>
     </main>

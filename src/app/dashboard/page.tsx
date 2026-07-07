@@ -3,10 +3,14 @@ import Link from "next/link";
 import { UserHeader } from "@/components/auth/user-header";
 import { Badge } from "@/components/projects/badge";
 import { ProjectCard } from "@/components/projects/project-card";
-import { getBadgeTone } from "@/lib/project-registry/colors";
+import { getBadgeTone, getChartTone } from "@/lib/project-registry/colors";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProjectRegistryData } from "@/lib/supabase/project-registry";
-import type { ProjectListItem, ReferenceItem } from "@/types/project-registry";
+import type {
+  ColorKey,
+  ProjectListItem,
+  ReferenceItem,
+} from "@/types/project-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +25,7 @@ export default async function DashboardPage() {
 
   const activeProjects = projects.filter((project) => !project.is_archived);
   const archivedProjects = projects.filter((project) => project.is_archived);
-  const flagshipProjects = projects.filter((project) => project.is_flagship);
+  const flagshipProjects = activeProjects.filter((project) => project.is_flagship);
 
   const summaryCards = [
     {
@@ -37,7 +41,7 @@ export default async function DashboardPage() {
     {
       label: "Флагманские",
       value: flagshipProjects.length,
-      detail: "Проекты с флагманским признаком",
+      detail: "Активные проекты с флагманским признаком",
     },
     {
       label: "Архив",
@@ -46,8 +50,8 @@ export default async function DashboardPage() {
     },
   ];
 
-  const statusDistribution = getDistribution(statuses, projects, "status");
-  const clusterDistribution = getDistribution(clusters, projects, "cluster");
+  const statusDistribution = getStatusDistribution(statuses, activeProjects);
+  const clusterDistribution = getClusterDistribution(clusters, activeProjects);
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
@@ -83,13 +87,17 @@ export default async function DashboardPage() {
 
           <div className="grid gap-4 xl:grid-cols-2">
             <DistributionPanel
-              emptyLabel="Статусы готовы, проекты пока не импортированы."
+              description="Активные проекты по текущим статусам. Пустые значения показаны отдельно."
+              emptyLabel="Активных проектов пока нет."
               items={statusDistribution}
+              totalLabel="Активных"
               title="Распределение по статусам"
             />
             <DistributionPanel
-              emptyLabel="Кластеры готовы, проекты пока не импортированы."
+              description="Активные проекты по кластерам. Архив учитывается отдельно в верхних карточках."
+              emptyLabel="Активных проектов пока нет."
               items={clusterDistribution}
+              totalLabel="Активных"
               title="Распределение по кластерам"
             />
           </div>
@@ -141,28 +149,133 @@ export default async function DashboardPage() {
   );
 }
 
-function getDistribution(
+type DistributionItem = {
+  id: string;
+  name: string;
+  color_key?: ColorKey | null;
+  count: number;
+};
+
+const canonicalStatuses: Array<Pick<DistributionItem, "name" | "color_key">> = [
+  { name: "идея/КП", color_key: "amber" },
+  { name: "факт оплаты", color_key: "green" },
+  { name: "уточнение ТЗ", color_key: "blue" },
+  { name: "в разработке", color_key: "violet" },
+  { name: "на паузе", color_key: "gray" },
+];
+
+function getStatusDistribution(
   references: ReferenceItem[],
   projects: ProjectListItem[],
-  key: "cluster" | "status",
-) {
-  return references.map((reference) => ({
-    ...reference,
-    count: projects.filter((project) => project[key]?.id === reference.id)
-      .length,
-  }));
+): DistributionItem[] {
+  const items = canonicalStatuses.map((status) => {
+    const reference = references.find(
+      (item) => item.name.toLowerCase() === status.name.toLowerCase(),
+    );
+
+    return {
+      id: reference?.id ?? `status-${status.name}`,
+      name: reference?.name ?? status.name,
+      color_key: reference?.color_key ?? status.color_key,
+      count: projects.filter(
+        (project) =>
+          project.status?.name.toLowerCase() === status.name.toLowerCase(),
+      ).length,
+    };
+  });
+
+  const canonicalNames = new Set(
+    canonicalStatuses.map((status) => status.name.toLowerCase()),
+  );
+  const extraStatuses = references
+    .filter(
+      (reference) =>
+        !canonicalNames.has(reference.name.toLowerCase()) &&
+        projects.some((project) => project.status?.id === reference.id),
+    )
+    .map((reference) => ({
+      ...reference,
+      count: projects.filter((project) => project.status?.id === reference.id)
+        .length,
+    }));
+
+  const missingCount = projects.filter((project) => !project.status).length;
+
+  return [
+    ...items,
+    ...extraStatuses,
+    {
+      id: "status-missing",
+      name: "Без статуса",
+      color_key: "gray",
+      count: missingCount,
+    },
+  ];
+}
+
+function getClusterDistribution(
+  references: ReferenceItem[],
+  projects: ProjectListItem[],
+): DistributionItem[] {
+  const items = references
+    .map((reference) => ({
+      ...reference,
+      count: projects.filter((project) => project.cluster?.id === reference.id)
+        .length,
+    }))
+    .filter((item) => item.count > 0);
+  const knownClusterIds = new Set(references.map((reference) => reference.id));
+  const unknownClusterItems = projects
+    .filter(
+      (project) =>
+        project.cluster && !knownClusterIds.has(project.cluster.id),
+    )
+    .reduce<DistributionItem[]>((items, project) => {
+      const cluster = project.cluster;
+
+      if (!cluster) {
+        return items;
+      }
+
+      const existing = items.find((item) => item.id === cluster.id);
+
+      if (existing) {
+        existing.count += 1;
+      } else {
+        items.push({ ...cluster, count: 1 });
+      }
+
+      return items;
+    }, []);
+  const missingCount = projects.filter((project) => !project.cluster).length;
+
+  return [
+    ...items,
+    ...unknownClusterItems,
+    {
+      id: "cluster-missing",
+      name: "Без кластера",
+      color_key: "gray",
+      count: missingCount,
+    },
+  ];
 }
 
 function DistributionPanel({
+  description,
   emptyLabel,
   items,
   title,
+  totalLabel,
 }: {
+  description: string;
   emptyLabel: string;
-  items: Array<ReferenceItem & { count: number }>;
+  items: DistributionItem[];
   title: string;
+  totalLabel: string;
 }) {
   const total = items.reduce((sum, item) => sum + item.count, 0);
+  const visibleItems = items.filter((item) => item.count > 0);
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -170,22 +283,55 @@ function DistributionPanel({
         <div>
           <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
           <p className="mt-1 text-sm text-slate-500">
-            {total === 0 ? emptyLabel : "Считается по всем проектам в базе."}
+            {total === 0 ? emptyLabel : description}
           </p>
         </div>
-        <Badge colorKey="slate">{total}</Badge>
+        <Badge colorKey="slate">
+          {totalLabel}: {total}
+        </Badge>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
+
+      <div
+        aria-label={`${title}: всего ${total}`}
+        className="mt-5 flex h-5 overflow-hidden rounded-full bg-slate-100"
+        role="img"
+      >
+        {total === 0 ? (
+          <span className="h-full w-full bg-slate-200" />
+        ) : (
+          visibleItems.map((item) => (
+            <span
+              className={`h-full min-w-1 ${getChartTone(item.color_key)}`}
+              key={item.id}
+              style={{ width: `${(item.count / total) * 100}%` }}
+              title={`${item.name}: ${item.count}`}
+            />
+          ))
+        )}
+      </div>
+
+      <div className="mt-5 grid gap-2 sm:grid-cols-2">
         {items.map((item) => (
-          <span
-            className={`inline-flex min-h-8 items-center gap-2 rounded-md border px-3 text-sm font-medium ${getBadgeTone(
-              item.color_key,
-            )}`}
+          <div
+            className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 text-sm"
             key={item.id}
           >
-            <span>{item.name}</span>
-            <span>{item.count}</span>
-          </span>
+            <span className="flex min-w-0 items-center gap-2">
+              <span
+                className={`h-2.5 w-2.5 shrink-0 rounded-full ${getChartTone(
+                  item.color_key,
+                )}`}
+              />
+              <span className="truncate text-slate-700">{item.name}</span>
+            </span>
+            <span
+              className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-semibold ${getBadgeTone(
+                item.color_key,
+              )}`}
+            >
+              {item.count}
+            </span>
+          </div>
         ))}
       </div>
     </section>
