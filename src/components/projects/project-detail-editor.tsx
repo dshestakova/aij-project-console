@@ -216,9 +216,12 @@ function ProjectReadOnlyView({ project }: { project: ProjectDetail }) {
           descriptionUploaded={getProjectDescriptionUploaded(project)}
           innovationLevel={project.flagship_innovation_level}
           isFlagship={project.is_flagship}
-          passportUploaded={project.flagship_passport_uploaded}
           status={project.flagship_status?.name}
           uploadedToPrbr={project.flagship_uploaded_to_prbr}
+        />
+        <PassportProjectBlock
+          passportUploaded={project.flagship_passport_uploaded}
+          variant="readonly"
         />
         <InfoCard
           rows={[
@@ -400,12 +403,6 @@ function ProjectEditForm({
             </select>
           </label>
           <CheckboxField
-            checked={form.flagship_passport_uploaded}
-            label="Паспорт загружен"
-            onChange={(value) => onChange("flagship_passport_uploaded", value)}
-          />
-          {/* Later this should be connected to project file upload / passport document attachment. */}
-          <CheckboxField
             checked={form.flagship_uploaded_to_prbr}
             label="Загружен на ПРБР"
             onChange={(value) => onChange("flagship_uploaded_to_prbr", value)}
@@ -416,6 +413,14 @@ function ProjectEditForm({
             onChange={(value) => onChange("flagship_approved_by_ca", value)}
           />
             </div>
+
+            <PassportProjectBlock
+              onPassportUploadedChange={(value) =>
+                onChange("flagship_passport_uploaded", value)
+              }
+              passportUploaded={form.flagship_passport_uploaded}
+              variant="edit"
+            />
 
             <div className="grid gap-4 lg:grid-cols-3">
               <TextareaField
@@ -546,7 +551,6 @@ function FlagshipCard({
   descriptionUploaded,
   innovationLevel,
   isFlagship,
-  passportUploaded,
   status,
   uploadedToPrbr,
 }: {
@@ -554,7 +558,6 @@ function FlagshipCard({
   descriptionUploaded: boolean;
   innovationLevel: string | null;
   isFlagship: boolean;
-  passportUploaded: boolean;
   status: string | null | undefined;
   uploadedToPrbr: boolean;
 }) {
@@ -562,7 +565,6 @@ function FlagshipCard({
     ["Флагман", isFlagship ? "да" : "нет"],
     ["Описание", descriptionUploaded ? "загружено" : "не загружено"],
     ["Инновационность", innovationLevel ?? "не указано"],
-    ["Паспорт", passportUploaded ? "загружен" : "не загружен"],
     ["Загружен на ПРБР", uploadedToPrbr ? "да" : "нет"],
     ["Одобрен ЦА", approvedByCa ? "да" : "нет"],
   ];
@@ -572,6 +574,66 @@ function FlagshipCard({
   }
 
   return <InfoCard rows={rows} title="Флагманский проект" />;
+}
+
+function PassportProjectBlock({
+  onPassportUploadedChange,
+  passportUploaded,
+  variant,
+}: {
+  onPassportUploadedChange?: (value: boolean) => void;
+  passportUploaded: boolean;
+  variant: "edit" | "readonly";
+}) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-950">
+            Паспорт проекта
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Позже здесь можно будет скачать паспорт, отредактировать его и
+            загрузить обновленную версию.
+          </p>
+        </div>
+        <StatusIndicator
+          active={passportUploaded}
+          activeLabel="Паспорт загружен"
+          inactiveLabel="Паспорт не загружен"
+        />
+      </div>
+
+      {variant === "edit" ? (
+        <div className="mt-4">
+          <CheckboxField
+            checked={passportUploaded}
+            label="Паспорт есть"
+            onChange={(value) => onPassportUploadedChange?.(value)}
+          />
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <button
+          className="h-10 rounded-md border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-400"
+          disabled
+          type="button"
+        >
+          Скачать паспорт — скоро
+        </button>
+        <button
+          className="h-10 rounded-md border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-400"
+          disabled
+          type="button"
+        >
+          Загрузить обновленный паспорт — скоро
+        </button>
+      </div>
+
+      {/* Future implementation should connect this block to project_files and Supabase Storage: list passport file attached to project, download existing passport, upload updated passport version, update flagship_passport_uploaded automatically when passport file exists, and preserve manual fallback if needed. */}
+    </section>
+  );
 }
 
 function InfoCard({
