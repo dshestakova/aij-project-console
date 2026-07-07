@@ -36,6 +36,27 @@ const statusValueAliases = new Map([
   ["в работе", "в разработке"],
   ["в проработке", "уточнение ТЗ"],
 ]);
+const optionalTextColumns = [
+  "client",
+  "project_name",
+  "essence",
+  "progress",
+  "next_step",
+  "funding",
+  "funding_status",
+  "comment",
+];
+const emptyPlaceholderValues = new Set([
+  "-",
+  "—",
+  "–",
+  "нет",
+  "нет данных",
+  "n/a",
+  "na",
+  "none",
+  "null",
+]);
 const projectColumns = [
   "external_id",
   "external_id_fallback",
@@ -77,6 +98,9 @@ Options:
   --self-test-aliases
                   Validate import reference aliases with built-in synthetic
                   reference values. No Supabase reads or writes.
+  --self-test-empty-values
+                  Validate empty optional values and updated_at fallback with
+                  built-in synthetic reference values. No Supabase reads or writes.
   --help          Show this help.
 `);
 }
@@ -100,6 +124,8 @@ function parseArgs(argv) {
       args.mode = "validate-csv-only";
     } else if (arg === "--self-test-aliases") {
       args.mode = "self-test-aliases";
+    } else if (arg === "--self-test-empty-values") {
+      args.mode = "self-test-empty-values";
     } else if (arg === "--file") {
       args.file = argv[index + 1] ?? "";
       index += 1;
@@ -154,7 +180,16 @@ function normalizeName(value) {
 
 function normalizeValue(value) {
   const normalizedValue = String(value ?? "").trim();
-  return normalizedValue || null;
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  if (emptyPlaceholderValues.has(normalizeName(normalizedValue))) {
+    return null;
+  }
+
+  return normalizedValue;
 }
 
 function normalizeReferenceValue(value, aliases) {
@@ -293,7 +328,7 @@ function getCanonicalValue(record, canonicalName) {
   return null;
 }
 
-function normalizeCsvRow(record) {
+function normalizeCsvRow(record, importStartedAt) {
   const normalized = {
     __rowNumber: record.__rowNumber,
     source_payload: Object.fromEntries(
@@ -318,7 +353,12 @@ function normalizeCsvRow(record) {
   normalized.funding = normalized.funding_comment ?? normalized.funding;
   normalized.is_flagship = parseBoolean(normalized.is_flagship);
   normalized.is_archived = parseBoolean(normalized.is_archived);
-  normalized.updated_at = parseSourceUpdatedAt(normalized.source_updated_at);
+  const parsedUpdatedAt = parseSourceUpdatedAt(normalized.source_updated_at);
+  normalized.updated_at = parsedUpdatedAt ?? importStartedAt;
+  normalized.used_updated_at_fallback = !parsedUpdatedAt;
+  normalized.empty_optional_fields = optionalTextColumns.filter(
+    (column) => normalized[column] === null,
+  );
 
   return normalized;
 }
@@ -370,6 +410,7 @@ function addUnique(map, key, value) {
 
 function validateRows(rows, references) {
   const issues = [];
+  const warnings = [];
   const missingClusters = new Map();
   const missingStatuses = new Map();
   const missingFlagshipStatuses = new Map();
@@ -378,6 +419,12 @@ function validateRows(rows, references) {
   const externalIds = new Map();
 
   for (const row of rows) {
+    if (row.used_updated_at_fallback) {
+      warnings.push(
+        `Row ${row.__rowNumber}: using import timestamp for updated_at because "Дата последнего обновления" is empty or not safely parseable`,
+      );
+    }
+
     for (const column of requiredColumns) {
       if (!row[column]) {
         issues.push(`Row ${row.__rowNumber}: missing required field ${column}`);
@@ -443,6 +490,7 @@ function validateRows(rows, references) {
 
   return {
     issues,
+    warnings,
     missingClusters: [...missingClusters.values()],
     missingStatuses: [...missingStatuses.values()],
     missingFlagshipStatuses: [...missingFlagshipStatuses.values()],
@@ -455,11 +503,35 @@ function printValidationSummary(rows, validation, mode) {
   console.log(`Mode: ${mode}`);
   console.log(`Rows found: ${rows.length}`);
   console.log(`Rows with external_id: ${rows.filter((row) => row.external_id).length}`);
+  console.log(
+    `Rows with fallback updated_at: ${
+      rows.filter((row) => row.used_updated_at_fallback).length
+    }`,
+  );
+  console.log(
+    `Empty optional text values: ${rows.reduce(
+      (total, row) => total + row.empty_optional_fields.length,
+      0,
+    )}`,
+  );
   console.log("");
 
   if (validation.issues.length > 0) {
     console.log("Blocking validation issues:");
     validation.issues.forEach((issue) => console.log(`- ${issue}`));
+    console.log("");
+  }
+
+  if (validation.warnings.length > 0) {
+    console.log("Warnings:");
+    validation.warnings.slice(0, 20).forEach((warning) => {
+      console.log(`- ${warning}`);
+    });
+
+    if (validation.warnings.length > 20) {
+      console.log(`- ...and ${validation.warnings.length - 20} more warnings`);
+    }
+
     console.log("");
   }
 
@@ -472,9 +544,16 @@ function printValidationSummary(rows, validation, mode) {
 
 function validateCsvOnly(rows) {
   const issues = [];
+  const warnings = [];
   const externalIds = new Map();
 
   for (const row of rows) {
+    if (row.used_updated_at_fallback) {
+      warnings.push(
+        `Row ${row.__rowNumber}: using import timestamp for updated_at because "Дата последнего обновления" is empty or not safely parseable`,
+      );
+    }
+
     if (!row.external_id) {
       issues.push(
         `Row ${row.__rowNumber}: missing required field external_id; expected "ID проекта" or fallback "№ исходный"`,
@@ -497,6 +576,7 @@ function validateCsvOnly(rows) {
 
   return {
     issues,
+    warnings,
     missingClusters: [],
     missingStatuses: [],
     missingFlagshipStatuses: [],
@@ -521,6 +601,44 @@ function getAliasSelfTestReferences() {
     people: buildPeopleMap([]),
     industryUnits: buildNameMap([]),
   };
+}
+
+function getEmptyValueSelfTestReferences() {
+  return {
+    clusters: buildNameMap([]),
+    statuses: buildNameMap([]),
+    flagshipStatuses: buildNameMap([]),
+    people: buildPeopleMap([]),
+    industryUnits: buildNameMap([]),
+  };
+}
+
+function validateEmptyValueSelfTest(rows, validation, references) {
+  const issues = [];
+  const payloads = rows.map((row) => buildProjectPayload(row, references));
+  const hasUpdatedAtFallback = rows.some((row) => row.used_updated_at_fallback);
+  const hasEmptyOptionalFields = rows.some(
+    (row) => row.empty_optional_fields.length > 0,
+  );
+  const hasInvalidUpdatedAt = payloads.some((payload) => !payload.updated_at);
+
+  if (hasInvalidUpdatedAt) {
+    issues.push("self-test expected every import payload row to have updated_at");
+  }
+
+  if (!hasUpdatedAtFallback) {
+    issues.push("self-test expected at least one row to use updated_at fallback");
+  }
+
+  if (!hasEmptyOptionalFields) {
+    issues.push("self-test expected at least one empty optional text value");
+  }
+
+  if (hasBlockingIssues(validation)) {
+    issues.push("self-test expected no blocking validation issues");
+  }
+
+  return issues;
 }
 
 function printMissing(title, items) {
@@ -633,7 +751,7 @@ function buildProjectPayload(row, references) {
     comment: row.comment,
     is_archived: row.is_archived,
     source_payload: row.source_payload,
-    ...(row.updated_at ? { updated_at: row.updated_at } : {}),
+    updated_at: row.updated_at,
   };
 }
 
@@ -651,7 +769,10 @@ async function main() {
 
   const csvPath = path.resolve(process.cwd(), args.file);
   const csvText = await readFile(csvPath, "utf8");
-  const rows = parseCsv(csvText).map(normalizeCsvRow);
+  const importStartedAt = new Date().toISOString();
+  const rows = parseCsv(csvText).map((record) =>
+    normalizeCsvRow(record, importStartedAt),
+  );
 
   if (rows.length === 0) {
     throw new Error("CSV has no data rows to import.");
@@ -682,6 +803,22 @@ async function main() {
     }
 
     console.log("Alias self-test finished. No database reads or writes were made.");
+    return;
+  }
+
+  if (args.mode === "self-test-empty-values") {
+    const references = getEmptyValueSelfTestReferences();
+    const validation = validateRows(rows, references);
+    printValidationSummary(rows, validation, args.mode);
+
+    const selfTestIssues = validateEmptyValueSelfTest(rows, validation, references);
+
+    if (selfTestIssues.length > 0) {
+      selfTestIssues.forEach((issue) => console.log(`- ${issue}`));
+      throw new Error("Empty values self-test failed.");
+    }
+
+    console.log("Empty values self-test finished. No database reads or writes were made.");
     return;
   }
 
