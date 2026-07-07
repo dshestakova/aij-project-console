@@ -71,6 +71,26 @@ ID проекта,Кластер,№ в кластере,№ исходный,К
 
 The full original CSV row is stored in `projects.source_payload` during real import.
 
+## Legacy value aliases
+
+Некоторые значения в Google Sheets отличаются от текущих справочников Supabase. Скрипт использует aliases только для поиска reference ID, а исходные значения сохраняет в `projects.source_payload`.
+
+Cluster aliases:
+
+- `Соц` -> `Социальный`
+
+Project status aliases:
+
+- `идея` -> `идея/КП`
+- `в работе` -> `в разработке`
+- `в проработке` -> `уточнение ТЗ`
+
+Проверить aliases на синтетическом CSV можно без Supabase:
+
+```bash
+npm run import:projects -- --file /private/tmp/aij-project-import/alias-test.csv --self-test-aliases
+```
+
 ## Что делает импорт
 
 Скрипт `scripts/import-projects-csv.mjs`:

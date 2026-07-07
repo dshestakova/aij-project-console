@@ -28,6 +28,14 @@ const columnAliases = {
 };
 
 const requiredColumns = ["external_id"];
+const clusterValueAliases = new Map([
+  ["соц", "Социальный"],
+]);
+const statusValueAliases = new Map([
+  ["идея", "идея/КП"],
+  ["в работе", "в разработке"],
+  ["в проработке", "уточнение ТЗ"],
+]);
 const projectColumns = [
   "external_id",
   "external_id_fallback",
@@ -66,6 +74,9 @@ Options:
   --validate-csv-only
                   Check CSV headers and required external_id fallback without
                   reading Supabase or writing to the database.
+  --self-test-aliases
+                  Validate import reference aliases with built-in synthetic
+                  reference values. No Supabase reads or writes.
   --help          Show this help.
 `);
 }
@@ -87,6 +98,8 @@ function parseArgs(argv) {
       args.mode = "import";
     } else if (arg === "--validate-csv-only") {
       args.mode = "validate-csv-only";
+    } else if (arg === "--self-test-aliases") {
+      args.mode = "self-test-aliases";
     } else if (arg === "--file") {
       args.file = argv[index + 1] ?? "";
       index += 1;
@@ -142,6 +155,14 @@ function normalizeName(value) {
 function normalizeValue(value) {
   const normalizedValue = String(value ?? "").trim();
   return normalizedValue || null;
+}
+
+function normalizeReferenceValue(value, aliases) {
+  if (!value) {
+    return null;
+  }
+
+  return aliases.get(normalizeName(value)) ?? value;
 }
 
 function parseBoolean(value) {
@@ -286,6 +307,14 @@ function normalizeCsvRow(record) {
 
   normalized.external_id =
     normalized.external_id ?? normalized.external_id_fallback;
+  normalized.cluster = normalizeReferenceValue(
+    normalized.cluster,
+    clusterValueAliases,
+  );
+  normalized.status = normalizeReferenceValue(
+    normalized.status,
+    statusValueAliases,
+  );
   normalized.funding = normalized.funding_comment ?? normalized.funding;
   normalized.is_flagship = parseBoolean(normalized.is_flagship);
   normalized.is_archived = parseBoolean(normalized.is_archived);
@@ -476,6 +505,24 @@ function validateCsvOnly(rows) {
   };
 }
 
+function getAliasSelfTestReferences() {
+  return {
+    clusters: buildNameMap([
+      { id: "cluster-social", name: "Социальный" },
+      { id: "cluster-services", name: "Сфера услуг" },
+      { id: "cluster-trade", name: "Торговля" },
+    ]),
+    statuses: buildNameMap([
+      { id: "status-idea", name: "идея/КП" },
+      { id: "status-in-work", name: "в разработке" },
+      { id: "status-clarify", name: "уточнение ТЗ" },
+    ]),
+    flagshipStatuses: buildNameMap([]),
+    people: buildPeopleMap([]),
+    industryUnits: buildNameMap([]),
+  };
+}
+
 function printMissing(title, items) {
   if (items.length === 0) {
     return;
@@ -619,6 +666,22 @@ async function main() {
     }
 
     console.log("CSV-only validation finished. No database reads or writes were made.");
+    return;
+  }
+
+  if (args.mode === "self-test-aliases") {
+    const validation = validateRows(rows, getAliasSelfTestReferences());
+    printValidationSummary(rows, validation, args.mode);
+
+    if (
+      validation.missingClusters.length > 0 ||
+      validation.missingStatuses.length > 0 ||
+      validation.issues.length > 0
+    ) {
+      throw new Error("Alias self-test failed.");
+    }
+
+    console.log("Alias self-test finished. No database reads or writes were made.");
     return;
   }
 
