@@ -32,13 +32,15 @@ docs/project-import-template.csv
 ID проекта,Кластер,№ в кластере,№ исходный,Клиент,Название проекта,Суть проекта,Срок реализации,Тип срока,Прогресс реализации,Статус,Риск,Причина риска,Следующий шаг,Финансирование статус,Финансирование комментарий,Спонсор проекта,Партнер,Статья/мероприятие,CSM,Директор,Отраслевое управление,Флагман,AIJ метка исходная,Дата последнего обновления,Обновил,Архив,Комментарий
 ```
 
-Минимально обязательная колонка для записи в базу:
+Минимально обязательное значение для записи в базу:
 
 - `ID проекта`
 
 Если `ID проекта` пустой, скрипт использует fallback `№ исходный`. Если обе колонки пустые, dry-run покажет blocking validation issue.
 
-Рекомендуемые колонки для качества данных:
+Остальные бизнес-поля считаются опциональными на первом импорте. Пустые значения можно будет заполнить позже в интерфейсе или следующим импортом.
+
+Рекомендуемые колонки для качества данных, но не блокеры импорта:
 
 - `client`
 - `project_name`
@@ -67,9 +69,47 @@ ID проекта,Кластер,№ в кластере,№ исходный,К
 | `Флагман` | `projects.is_flagship` |
 | `Архив` | `projects.is_archived` |
 | `Комментарий` | `projects.comment` |
-| `Дата последнего обновления` | `projects.updated_at` if safely parseable |
+| `Дата последнего обновления` | `projects.updated_at` if safely parseable, otherwise import timestamp |
 
 The full original CSV row is stored in `projects.source_payload` during real import.
+
+## Empty optional values
+
+Источник может содержать пустые ячейки в большинстве колонок. Это нормально для первого импорта.
+
+Для текстовых полей скрипт считает пустыми:
+
+- пустую ячейку;
+- пробелы;
+- `-`;
+- `—`;
+- `–`;
+- `нет`;
+- `нет данных`;
+- `n/a`;
+- `na`;
+- `none`;
+- `null`.
+
+Такие значения сохраняются в payload проекта как `null` и не блокируют импорт. Это относится к:
+
+- `client`;
+- `project_name`;
+- `essence`;
+- `progress`;
+- `next_step`;
+- `funding`;
+- `funding_status`;
+- `comment`.
+
+Для `Флагман` и `Архив` пустая ячейка означает `false`.
+
+Для `Дата последнего обновления`:
+
+- если значение есть и безопасно парсится, оно попадет в `projects.updated_at`;
+- если значение пустое, некорректное или непонятное, скрипт использует timestamp запуска импорта;
+- `projects.updated_at` никогда не отправляется как `null`;
+- исходное значение из CSV все равно сохраняется в `projects.source_payload`.
 
 ## Legacy value aliases
 
@@ -91,6 +131,12 @@ Project status aliases:
 npm run import:projects -- --file /private/tmp/aij-project-import/alias-test.csv --self-test-aliases
 ```
 
+Проверить обработку пустых опциональных значений можно без Supabase:
+
+```bash
+npm run import:projects -- --file /private/tmp/aij-project-import/empty-values-test.csv --self-test-empty-values
+```
+
 ## Что делает импорт
 
 Скрипт `scripts/import-projects-csv.mjs`:
@@ -98,6 +144,8 @@ npm run import:projects -- --file /private/tmp/aij-project-import/alias-test.csv
 - читает CSV;
 - проверяет обязательные поля;
 - проверяет дубли `external_id` внутри файла;
+- превращает пустые опциональные текстовые значения в `null`;
+- подставляет timestamp запуска импорта в `updated_at`, если дата из CSV пустая или не парсится;
 - сопоставляет справочники по названию:
   - `cluster` -> `clusters.name`;
   - `status` -> `project_statuses.name`;
@@ -163,6 +211,8 @@ npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv -
 - сколько строк найдено;
 - нет ли пустых `external_id`;
 - нет ли дублей `external_id`;
+- сколько строк использует fallback `updated_at`;
+- сколько пустых опциональных текстовых значений найдено;
 - нет ли unmatched clusters/statuses/flagship statuses;
 - какие CSM/director/industry units будут созданы при реальном импорте.
 
@@ -172,6 +222,9 @@ npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv -
 Mode: dry-run
 Rows found: 123
 Rows with external_id: 123
+Rows with fallback updated_at: 12
+Empty optional text values: 37
+
 Dry-run finished. No database writes were made.
 ```
 
