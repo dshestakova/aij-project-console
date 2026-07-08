@@ -33,7 +33,11 @@ export default async function ProjectDetailPage({
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <UserHeader activePath="/projects" email={user?.email ?? "Пользователь"} />
+        <UserHeader
+          activePath="/projects"
+          email={user?.email ?? "Пользователь"}
+          role={currentProfile?.role}
+        />
 
         <section className="flex flex-col gap-5 py-6">
           <Link
