@@ -102,8 +102,13 @@ function normalizeProjectDetail(row: ProjectDetailRow): ProjectDetail {
   };
 }
 
-function getSupabaseErrorMessage() {
-  return "Не удалось загрузить данные из Supabase. Проверьте RLS, профиль пользователя и доступ к таблицам.";
+function getSupabaseErrorMessage(error?: unknown) {
+  const details =
+    error && typeof error === "object" && "message" in error
+      ? ` Причина: ${String(error.message)}`
+      : "";
+
+  return `Не удалось загрузить данные из Supabase. Проверьте RLS, профиль пользователя и доступ к таблицам.${details}`;
 }
 
 export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
@@ -153,7 +158,7 @@ export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
     ),
     statuses: (statusesResult.data ?? []) as ReferenceItem[],
     clusters: (clustersResult.data ?? []) as ReferenceItem[],
-    errorMessage: error ? getSupabaseErrorMessage() : null,
+    errorMessage: error ? getSupabaseErrorMessage(error) : null,
   };
 }
 
@@ -208,7 +213,7 @@ export async function getProjectDetail(
     project: data
       ? normalizeProjectDetail(data as unknown as ProjectDetailRow)
       : null,
-    errorMessage: error ? getSupabaseErrorMessage() : null,
+    errorMessage: error ? getSupabaseErrorMessage(error) : null,
   };
 }
 
@@ -303,7 +308,7 @@ export async function getProjectDetailPageData(id: string): Promise<{
           version_number,
           is_current,
           description,
-          profile:profiles(id, email, display_name, role)
+          profile:profiles!project_files_uploaded_by_fkey(id, email, display_name, role)
         `,
       )
       .eq("project_id", id)
@@ -362,7 +367,7 @@ export async function getProjectDetailPageData(id: string): Promise<{
     currentProfile: (profileResult.data as ProfileReference | null) ?? null,
     errorMessage:
       projectResult.errorMessage || referenceError
-        ? getSupabaseErrorMessage()
+        ? projectResult.errorMessage ?? getSupabaseErrorMessage(referenceError)
         : null,
   };
 }

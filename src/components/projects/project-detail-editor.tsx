@@ -36,6 +36,15 @@ const allowedPassportMimeTypes = [
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ];
+const passportMimeTypeByExtension: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".docx":
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".pptx":
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".xlsx":
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
 const maxPassportSizeBytes = 20 * 1024 * 1024;
 
 const fieldLabels: Record<string, string> = {
@@ -131,24 +140,30 @@ export function ProjectDetailEditor({
 
     try {
       const safeFileName = getSafeFileName(file.name);
+      const mimeType = getPassportMimeType(file);
       const storagePath = `projects/${project.id}/passport/${Date.now()}-${safeFileName}`;
       const supabase = createBrowserSupabaseClient();
       const { error: uploadError } = await supabase.storage
         .from("project-files")
         .upload(storagePath, file, {
-          contentType: file.type || undefined,
+          contentType: mimeType,
           upsert: false,
         });
 
       if (uploadError) {
-        setPassportError("Не удалось загрузить файл паспорта в хранилище.");
+        console.error("Passport storage upload failed", uploadError);
+        setPassportError(
+          `Не удалось загрузить файл паспорта в хранилище: ${getErrorMessage(
+            uploadError,
+          )}`,
+        );
         return;
       }
 
       const result = await registerPassportUploadAction(project.id, {
         file_name: file.name,
         storage_path: storagePath,
-        mime_type: file.type || null,
+        mime_type: mimeType,
         size_bytes: file.size,
       });
 
@@ -1109,8 +1124,12 @@ function getProjectDescriptionUploaded(project: ProjectDetail) {
 function getPassportValidationError(file: File) {
   const extension = getFileExtension(file.name);
   const hasAllowedExtension = allowedPassportExtensions.includes(extension);
+  const inferredMimeType = passportMimeTypeByExtension[extension];
   const hasAllowedMimeType =
-    !file.type || allowedPassportMimeTypes.includes(file.type);
+    !file.type ||
+    file.type === "application/octet-stream" ||
+    allowedPassportMimeTypes.includes(file.type) ||
+    file.type === inferredMimeType;
 
   if (!hasAllowedExtension || !hasAllowedMimeType) {
     return "Можно загрузить только PDF, DOCX, PPTX или XLSX.";
@@ -1121,6 +1140,12 @@ function getPassportValidationError(file: File) {
   }
 
   return null;
+}
+
+function getPassportMimeType(file: File) {
+  const extension = getFileExtension(file.name);
+
+  return passportMimeTypeByExtension[extension] ?? file.type;
 }
 
 function getFileExtension(fileName: string) {
@@ -1140,6 +1165,14 @@ function getSafeFileName(fileName: string) {
     .slice(0, 80);
 
   return `${baseName || "passport"}${extension}`;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+
+  return "неизвестная ошибка";
 }
 
 function groupChanges(changes: ProjectChangeItem[]) {

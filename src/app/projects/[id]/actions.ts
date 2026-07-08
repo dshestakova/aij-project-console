@@ -400,7 +400,9 @@ export async function registerPassportUploadAction(
   if (currentFilesError) {
     return {
       ok: false,
-      message: "Не удалось проверить текущую версию паспорта.",
+      message: `Не удалось проверить текущую версию паспорта: ${getActionErrorMessage(
+        currentFilesError,
+      )}`,
     };
   }
 
@@ -417,7 +419,9 @@ export async function registerPassportUploadAction(
   if (previousUpdateError) {
     return {
       ok: false,
-      message: "Не удалось обновить предыдущую версию паспорта.",
+      message: `Не удалось обновить предыдущую версию паспорта: ${getActionErrorMessage(
+        previousUpdateError,
+      )}`,
     };
   }
 
@@ -437,7 +441,9 @@ export async function registerPassportUploadAction(
   if (fileInsertError) {
     return {
       ok: false,
-      message: "Файл загружен, но метаданные паспорта сохранить не удалось.",
+      message: `Файл загружен, но метаданные паспорта сохранить не удалось: ${getActionErrorMessage(
+        fileInsertError,
+      )}`,
     };
   }
 
@@ -450,7 +456,9 @@ export async function registerPassportUploadAction(
   if (projectUpdateError) {
     return {
       ok: false,
-      message: "Паспорт загружен, но статус проекта обновить не удалось.",
+      message: `Паспорт загружен, но статус проекта обновить не удалось: ${getActionErrorMessage(
+        projectUpdateError,
+      )}`,
     };
   }
 
@@ -468,8 +476,9 @@ export async function registerPassportUploadAction(
   if (changeInsertError) {
     return {
       ok: false,
-      message:
-        "Паспорт загружен, но историю изменений записать не удалось.",
+      message: `Паспорт загружен, но историю изменений записать не удалось: ${getActionErrorMessage(
+        changeInsertError,
+      )}`,
     };
   }
 
@@ -512,7 +521,11 @@ export async function getPassportDownloadUrlAction(
   if (passportError || !passport) {
     return {
       ok: false,
-      message: "Паспорт проекта пока не загружен.",
+      message: passportError
+        ? `Не удалось прочитать метаданные паспорта: ${getActionErrorMessage(
+            passportError,
+          )}`
+        : "Паспорт проекта пока не загружен.",
     };
   }
 
@@ -525,7 +538,9 @@ export async function getPassportDownloadUrlAction(
   if (error || !data?.signedUrl) {
     return {
       ok: false,
-      message: "Не удалось подготовить ссылку на скачивание паспорта.",
+      message: `Не удалось подготовить ссылку на скачивание паспорта: ${getActionErrorMessage(
+        error,
+      )}`,
     };
   }
 
@@ -621,6 +636,18 @@ function displayReference(
   }
 
   return labels.get(id) ?? id;
+}
+
+function getActionErrorMessage(error: unknown) {
+  if (!error) {
+    return "неизвестная ошибка";
+  }
+
+  if (typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+
+  return String(error);
 }
 
 function getProgressWithNextStepHistory(
