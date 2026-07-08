@@ -3,6 +3,7 @@ import type {
   ProjectDetail,
   ProjectChangeItem,
   ProjectEditReferences,
+  ProjectFileItem,
   ProjectListItem,
   ProjectRegistryData,
   ProfileReference,
@@ -16,6 +17,7 @@ type ProjectListRow = {
   project_name: string | null;
   is_flagship: boolean;
   is_archived: boolean;
+  flagship_passport_uploaded: boolean | null;
   next_step: string | null;
   updated_at: string;
   cluster_id: string | null;
@@ -52,6 +54,10 @@ type ProjectChangeRow = Omit<ProjectChangeItem, "profile"> & {
   profile: ProfileReference | ProfileReference[] | null;
 };
 
+type ProjectFileRow = Omit<ProjectFileItem, "profile"> & {
+  profile: ProfileReference | ProfileReference[] | null;
+};
+
 function normalizeRelation<T>(value: T | T[] | null): T | null {
   if (Array.isArray(value)) {
     return value[0] ?? null;
@@ -63,6 +69,7 @@ function normalizeRelation<T>(value: T | T[] | null): T | null {
 function normalizeProjectListItem(row: ProjectListRow): ProjectListItem {
   return {
     ...row,
+    flagship_passport_uploaded: row.flagship_passport_uploaded ?? false,
     cluster: normalizeRelation(row.cluster),
     status: normalizeRelation(row.status),
     flagship_status: normalizeRelation(row.flagship_status),
@@ -95,8 +102,13 @@ function normalizeProjectDetail(row: ProjectDetailRow): ProjectDetail {
   };
 }
 
-function getSupabaseErrorMessage() {
-  return "Не удалось загрузить данные из Supabase. Проверьте RLS, профиль пользователя и доступ к таблицам.";
+function getSupabaseErrorMessage(error?: unknown) {
+  const details =
+    error && typeof error === "object" && "message" in error
+      ? ` Причина: ${String(error.message)}`
+      : "";
+
+  return `Не удалось загрузить данные из Supabase. Проверьте RLS, профиль пользователя и доступ к таблицам.${details}`;
 }
 
 export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
@@ -114,6 +126,7 @@ export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
           cluster_id,
           status_id,
           is_flagship,
+          flagship_passport_uploaded,
           flagship_status_id,
           is_archived,
           next_step,
@@ -145,7 +158,7 @@ export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
     ),
     statuses: (statusesResult.data ?? []) as ReferenceItem[],
     clusters: (clustersResult.data ?? []) as ReferenceItem[],
-    errorMessage: error ? getSupabaseErrorMessage() : null,
+    errorMessage: error ? getSupabaseErrorMessage(error) : null,
   };
 }
 
@@ -200,7 +213,7 @@ export async function getProjectDetail(
     project: data
       ? normalizeProjectDetail(data as unknown as ProjectDetailRow)
       : null,
-    errorMessage: error ? getSupabaseErrorMessage() : null,
+    errorMessage: error ? getSupabaseErrorMessage(error) : null,
   };
 }
 
@@ -209,6 +222,7 @@ export async function getProjectDetailPageData(id: string): Promise<{
   references: ProjectEditReferences;
   changes: ProjectChangeItem[];
   currentProfile: ProfileReference | null;
+  currentPassport: ProjectFileItem | null;
   errorMessage: string | null;
 }> {
   const supabase = await createServerSupabaseClient();
@@ -225,6 +239,7 @@ export async function getProjectDetailPageData(id: string): Promise<{
     directorsResult,
     industryUnitsResult,
     changesResult,
+    passportResult,
     profileResult,
   ] = await Promise.all([
     getProjectDetail(id),
@@ -277,6 +292,32 @@ export async function getProjectDetailPageData(id: string): Promise<{
       .eq("project_id", id)
       .order("changed_at", { ascending: false })
       .limit(30),
+    supabase
+      .from("project_files")
+      .select(
+        `
+          id,
+          project_id,
+          file_name,
+          storage_path,
+          mime_type,
+          size_bytes,
+          uploaded_by,
+          uploaded_at,
+          file_type,
+          version_number,
+          is_current,
+          description,
+          profile:profiles!project_files_uploaded_by_fkey(id, email, display_name, role)
+        `,
+      )
+      .eq("project_id", id)
+      .eq("file_type", "passport")
+      .eq("is_current", true)
+      .is("deleted_at", null)
+      .order("uploaded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     user
       ? supabase
           .from("profiles")
@@ -294,6 +335,7 @@ export async function getProjectDetailPageData(id: string): Promise<{
     directorsResult.error ??
     industryUnitsResult.error ??
     changesResult.error ??
+    passportResult.error ??
     profileResult.error;
 
   return {
@@ -314,10 +356,18 @@ export async function getProjectDetailPageData(id: string): Promise<{
         profile: normalizeRelation(change.profile),
       }),
     ),
+    currentPassport: passportResult.data
+      ? {
+          ...((passportResult.data as unknown as ProjectFileRow) ?? null),
+          profile: normalizeRelation(
+            (passportResult.data as unknown as ProjectFileRow).profile,
+          ),
+        }
+      : null,
     currentProfile: (profileResult.data as ProfileReference | null) ?? null,
     errorMessage:
       projectResult.errorMessage || referenceError
-        ? getSupabaseErrorMessage()
+        ? projectResult.errorMessage ?? getSupabaseErrorMessage(referenceError)
         : null,
   };
 }

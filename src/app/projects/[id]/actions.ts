@@ -37,6 +37,22 @@ export type ProjectEditResult = {
   message: string;
 };
 
+export type PassportUploadInput = {
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number;
+};
+
+export type PassportUploadResult = ProjectEditResult;
+
+export type PassportDownloadResult = {
+  ok: boolean;
+  message: string;
+  url?: string;
+  fileName?: string;
+};
+
 type EditableProjectRow = {
   id: string;
   external_id: string;
@@ -331,6 +347,211 @@ export async function updateProjectAction(
   };
 }
 
+export async function registerPassportUploadAction(
+  projectId: string,
+  input: PassportUploadInput,
+): Promise<PassportUploadResult> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      message: "Нужно войти в систему, чтобы загрузить паспорт.",
+    };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile || !["admin", "editor"].includes(profile.role)) {
+    return {
+      ok: false,
+      message: "У вас нет прав на загрузку паспорта проекта.",
+    };
+  }
+
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .select("id, flagship_passport_uploaded")
+    .eq("id", projectId)
+    .maybeSingle();
+
+  if (projectError || !project) {
+    return {
+      ok: false,
+      message: "Не удалось найти проект для загрузки паспорта.",
+    };
+  }
+
+  const { data: currentFiles, error: currentFilesError } = await supabase
+    .from("project_files")
+    .select("version_number")
+    .eq("project_id", projectId)
+    .eq("file_type", "passport")
+    .order("version_number", { ascending: false, nullsFirst: false })
+    .limit(1);
+
+  if (currentFilesError) {
+    return {
+      ok: false,
+      message: `Не удалось проверить текущую версию паспорта: ${getActionErrorMessage(
+        currentFilesError,
+      )}`,
+    };
+  }
+
+  const latestVersion = currentFiles?.[0]?.version_number ?? 0;
+  const nextVersion = latestVersion + 1;
+
+  const { error: previousUpdateError } = await supabase
+    .from("project_files")
+    .update({ is_current: false })
+    .eq("project_id", projectId)
+    .eq("file_type", "passport")
+    .eq("is_current", true);
+
+  if (previousUpdateError) {
+    return {
+      ok: false,
+      message: `Не удалось обновить предыдущую версию паспорта: ${getActionErrorMessage(
+        previousUpdateError,
+      )}`,
+    };
+  }
+
+  const { error: fileInsertError } = await supabase.from("project_files").insert({
+    project_id: projectId,
+    file_type: "passport",
+    file_name: input.file_name,
+    storage_path: input.storage_path,
+    mime_type: input.mime_type,
+    size_bytes: input.size_bytes,
+    uploaded_by: profile.id,
+    version_number: nextVersion,
+    is_current: true,
+    description: "Паспорт проекта",
+  });
+
+  if (fileInsertError) {
+    return {
+      ok: false,
+      message: `Файл загружен, но метаданные паспорта сохранить не удалось: ${getActionErrorMessage(
+        fileInsertError,
+      )}`,
+    };
+  }
+
+  const wasUploaded = Boolean(project.flagship_passport_uploaded);
+  const { error: projectUpdateError } = await supabase
+    .from("projects")
+    .update({ flagship_passport_uploaded: true })
+    .eq("id", projectId);
+
+  if (projectUpdateError) {
+    return {
+      ok: false,
+      message: `Паспорт загружен, но статус проекта обновить не удалось: ${getActionErrorMessage(
+        projectUpdateError,
+      )}`,
+    };
+  }
+
+  const { error: changeInsertError } = await supabase
+    .from("project_changes")
+    .insert({
+      project_id: projectId,
+      changed_by: profile.id,
+      field_name: "flagship_passport_uploaded",
+      old_value: wasUploaded ? "Паспорт загружен" : "Паспорт не загружен",
+      new_value: wasUploaded ? "Паспорт обновлен" : "Паспорт загружен",
+      source: "web",
+    });
+
+  if (changeInsertError) {
+    return {
+      ok: false,
+      message: `Паспорт загружен, но историю изменений записать не удалось: ${getActionErrorMessage(
+        changeInsertError,
+      )}`,
+    };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects");
+  revalidatePath("/dashboard");
+
+  return {
+    ok: true,
+    message: wasUploaded ? "Паспорт обновлен." : "Паспорт загружен.",
+  };
+}
+
+export async function getPassportDownloadUrlAction(
+  projectId: string,
+): Promise<PassportDownloadResult> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      message: "Нужно войти в систему, чтобы скачать паспорт.",
+    };
+  }
+
+  const { data: passport, error: passportError } = await supabase
+    .from("project_files")
+    .select("file_name, storage_path")
+    .eq("project_id", projectId)
+    .eq("file_type", "passport")
+    .eq("is_current", true)
+    .is("deleted_at", null)
+    .order("uploaded_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (passportError || !passport) {
+    return {
+      ok: false,
+      message: passportError
+        ? `Не удалось прочитать метаданные паспорта: ${getActionErrorMessage(
+            passportError,
+          )}`
+        : "Паспорт проекта пока не загружен.",
+    };
+  }
+
+  const { data, error } = await supabase.storage
+    .from("project-files")
+    .createSignedUrl(passport.storage_path, 60, {
+      download: passport.file_name,
+    });
+
+  if (error || !data?.signedUrl) {
+    return {
+      ok: false,
+      message: `Не удалось подготовить ссылку на скачивание паспорта: ${getActionErrorMessage(
+        error,
+      )}`,
+    };
+  }
+
+  return {
+    ok: true,
+    message: "Ссылка на скачивание готова.",
+    url: data.signedUrl,
+    fileName: passport.file_name,
+  };
+}
+
 function normalizeInput(input: ProjectEditInput): EditableProjectRow {
   const isFlagship = input.is_flagship;
 
@@ -415,6 +636,18 @@ function displayReference(
   }
 
   return labels.get(id) ?? id;
+}
+
+function getActionErrorMessage(error: unknown) {
+  if (!error) {
+    return "неизвестная ошибка";
+  }
+
+  if (typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+
+  return String(error);
 }
 
 function getProgressWithNextStepHistory(

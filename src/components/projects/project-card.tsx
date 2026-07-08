@@ -51,6 +51,9 @@ export function ProjectCard({ project }: ProjectCardProps) {
             {project.flagship_status.name}
           </Badge>
         ) : null}
+        {project.flagship_passport_uploaded ? (
+          <Badge colorKey="green">Паспорт загружен</Badge>
+        ) : null}
         {project.is_archived ? <Badge colorKey="gray">Архив</Badge> : null}
       </div>
 

@@ -145,6 +145,34 @@ The first project registry UI is read-only:
 
 The UI respects Supabase Auth, middleware protection, and RLS. Editing, imports, file uploads, and GigaChat are intentionally out of scope for this phase.
 
+## Project Passport Storage
+
+Project passport files use the private Supabase Storage bucket `project-files`.
+
+Storage path convention:
+
+```text
+projects/{project_id}/passport/{timestamp}-{safe_filename}
+```
+
+Allowed passport file types:
+
+- PDF
+- DOCX
+- PPTX
+- XLSX
+
+Maximum file size: 20 MB.
+
+Apply `supabase/migrations/20260707170000_add_project_file_passport_storage.sql` in Supabase SQL Editor before testing passport upload/download. The migration:
+
+- adds passport/versioning metadata fields to `project_files`;
+- creates or updates the private `project-files` bucket;
+- allows authenticated users to read files from that bucket;
+- allows only `admin` and `editor` profiles to upload/update files in that bucket.
+
+Passport metadata is stored in `project_files` with `file_type = 'passport'`. Only the latest passport should have `is_current = true`.
+
 ## CSV Import
 
 Project import is a local server-side workflow, not a browser upload.

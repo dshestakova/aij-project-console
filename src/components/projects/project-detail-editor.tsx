@@ -4,25 +4,48 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
+  getPassportDownloadUrlAction,
   type ProjectEditInput,
+  registerPassportUploadAction,
   updateProjectAction,
 } from "@/app/projects/[id]/actions";
 import { Badge } from "@/components/projects/badge";
 import { formatDateTime, getDisplayValue } from "@/lib/project-registry/format";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type {
   PersonReference,
   ProjectChangeItem,
   ProjectDetail,
   ProjectEditReferences,
+  ProjectFileItem,
   ReferenceItem,
 } from "@/types/project-registry";
 
 type ProjectDetailEditorProps = {
   canEdit: boolean;
   changes: ProjectChangeItem[];
+  currentPassport: ProjectFileItem | null;
   project: ProjectDetail;
   references: ProjectEditReferences;
 };
+
+const allowedPassportExtensions = [".pdf", ".docx", ".pptx", ".xlsx"];
+const allowedPassportMimeTypes = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];
+const passportMimeTypeByExtension: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".docx":
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".pptx":
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".xlsx":
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+const maxPassportSizeBytes = 20 * 1024 * 1024;
 
 const fieldLabels: Record<string, string> = {
   external_id: "Внешний ID",
@@ -55,6 +78,7 @@ const fieldLabels: Record<string, string> = {
 export function ProjectDetailEditor({
   canEdit,
   changes,
+  currentPassport,
   project,
   references,
 }: ProjectDetailEditorProps) {
@@ -63,6 +87,9 @@ export function ProjectDetailEditor({
   const [form, setForm] = useState(() => getInitialForm(project));
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [passportMessage, setPassportMessage] = useState<string | null>(null);
+  const [passportError, setPassportError] = useState<string | null>(null);
+  const [isPassportBusy, setIsPassportBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function updateField<K extends keyof ProjectEditInput>(
@@ -96,6 +123,79 @@ export function ProjectDetailEditor({
       setIsEditing(false);
       router.refresh();
     });
+  }
+
+  async function handlePassportUpload(file: File) {
+    setPassportError(null);
+    setPassportMessage(null);
+
+    const validationError = getPassportValidationError(file);
+
+    if (validationError) {
+      setPassportError(validationError);
+      return;
+    }
+
+    setIsPassportBusy(true);
+
+    try {
+      const safeFileName = getSafeFileName(file.name);
+      const mimeType = getPassportMimeType(file);
+      const storagePath = `projects/${project.id}/passport/${Date.now()}-${safeFileName}`;
+      const supabase = createBrowserSupabaseClient();
+      const { error: uploadError } = await supabase.storage
+        .from("project-files")
+        .upload(storagePath, file, {
+          contentType: mimeType,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error("Passport storage upload failed", uploadError);
+        setPassportError(
+          `Не удалось загрузить файл паспорта в хранилище: ${getErrorMessage(
+            uploadError,
+          )}`,
+        );
+        return;
+      }
+
+      const result = await registerPassportUploadAction(project.id, {
+        file_name: file.name,
+        storage_path: storagePath,
+        mime_type: mimeType,
+        size_bytes: file.size,
+      });
+
+      if (!result.ok) {
+        setPassportError(result.message);
+        return;
+      }
+
+      setPassportMessage(result.message);
+      router.refresh();
+    } finally {
+      setIsPassportBusy(false);
+    }
+  }
+
+  async function handlePassportDownload() {
+    setPassportError(null);
+    setPassportMessage(null);
+    setIsPassportBusy(true);
+
+    try {
+      const result = await getPassportDownloadUrlAction(project.id);
+
+      if (!result.ok || !result.url) {
+        setPassportError(result.message);
+        return;
+      }
+
+      window.open(result.url, "_blank", "noopener,noreferrer");
+    } finally {
+      setIsPassportBusy(false);
+    }
   }
 
   return (
@@ -173,15 +273,28 @@ export function ProjectDetailEditor({
 
       {isEditing ? (
         <ProjectEditForm
+          currentPassport={currentPassport}
           form={form}
           isPending={isPending}
+          isPassportBusy={isPassportBusy}
           onCancel={handleCancel}
           onChange={updateField}
+          onPassportDownload={handlePassportDownload}
+          onPassportUpload={handlePassportUpload}
           onSubmit={handleSubmit}
+          passportError={passportError}
+          passportMessage={passportMessage}
           references={references}
         />
       ) : (
-        <ProjectReadOnlyView project={project} />
+        <ProjectReadOnlyView
+          currentPassport={currentPassport}
+          isPassportBusy={isPassportBusy}
+          onPassportDownload={handlePassportDownload}
+          passportError={passportError}
+          passportMessage={passportMessage}
+          project={project}
+        />
       )}
 
       <ProjectChangeHistory changes={changes} />
@@ -189,7 +302,21 @@ export function ProjectDetailEditor({
   );
 }
 
-function ProjectReadOnlyView({ project }: { project: ProjectDetail }) {
+function ProjectReadOnlyView({
+  currentPassport,
+  isPassportBusy,
+  onPassportDownload,
+  passportError,
+  passportMessage,
+  project,
+}: {
+  currentPassport: ProjectFileItem | null;
+  isPassportBusy: boolean;
+  onPassportDownload: () => void;
+  passportError: string | null;
+  passportMessage: string | null;
+  project: ProjectDetail;
+}) {
   return (
     <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
       <div className="flex flex-col gap-4">
@@ -220,7 +347,12 @@ function ProjectReadOnlyView({ project }: { project: ProjectDetail }) {
           uploadedToPrbr={project.flagship_uploaded_to_prbr}
         />
         <PassportProjectBlock
+          currentPassport={currentPassport}
+          isBusy={isPassportBusy}
+          onDownload={onPassportDownload}
           passportUploaded={project.flagship_passport_uploaded}
+          passportError={passportError}
+          passportMessage={passportMessage}
           variant="readonly"
         />
         <InfoCard
@@ -239,21 +371,33 @@ function ProjectReadOnlyView({ project }: { project: ProjectDetail }) {
 }
 
 function ProjectEditForm({
+  currentPassport,
   form,
   isPending,
+  isPassportBusy,
   onCancel,
   onChange,
+  onPassportDownload,
+  onPassportUpload,
   onSubmit,
+  passportError,
+  passportMessage,
   references,
 }: {
+  currentPassport: ProjectFileItem | null;
   form: ProjectEditInput;
   isPending: boolean;
+  isPassportBusy: boolean;
   onCancel: () => void;
   onChange: <K extends keyof ProjectEditInput>(
     field: K,
     value: ProjectEditInput[K],
   ) => void;
+  onPassportDownload: () => void;
+  onPassportUpload: (file: File) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  passportError: string | null;
+  passportMessage: string | null;
   references: ProjectEditReferences;
 }) {
   const isDescriptionUploaded = getIsDescriptionUploaded(form);
@@ -415,10 +559,16 @@ function ProjectEditForm({
             </div>
 
             <PassportProjectBlock
+              currentPassport={currentPassport}
+              isBusy={isPassportBusy}
+              onDownload={onPassportDownload}
               onPassportUploadedChange={(value) =>
                 onChange("flagship_passport_uploaded", value)
               }
+              onUpload={onPassportUpload}
               passportUploaded={form.flagship_passport_uploaded}
+              passportError={passportError}
+              passportMessage={passportMessage}
               variant="edit"
             />
 
@@ -577,14 +727,31 @@ function FlagshipCard({
 }
 
 function PassportProjectBlock({
+  currentPassport,
+  isBusy,
+  onDownload,
   onPassportUploadedChange,
+  onUpload,
   passportUploaded,
+  passportError,
+  passportMessage,
   variant,
 }: {
+  currentPassport: ProjectFileItem | null;
+  isBusy: boolean;
+  onDownload: () => void;
   onPassportUploadedChange?: (value: boolean) => void;
+  onUpload?: (file: File) => void;
   passportUploaded: boolean;
+  passportError: string | null;
+  passportMessage: string | null;
   variant: "edit" | "readonly";
 }) {
+  const uploaderLabel =
+    currentPassport?.profile?.display_name ??
+    currentPassport?.profile?.email ??
+    null;
+
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -604,6 +771,45 @@ function PassportProjectBlock({
         />
       </div>
 
+      {currentPassport ? (
+        <dl className="mt-4 grid gap-3 rounded-md bg-slate-50 p-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-xs font-medium uppercase text-slate-400">
+              Файл
+            </dt>
+            <dd className="mt-1 text-slate-700">
+              {currentPassport.file_name}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase text-slate-400">
+              Загружен
+            </dt>
+            <dd className="mt-1 text-slate-700">
+              {formatDateTime(currentPassport.uploaded_at)}
+            </dd>
+          </div>
+          {uploaderLabel ? (
+            <div>
+              <dt className="text-xs font-medium uppercase text-slate-400">
+                Кто загрузил
+              </dt>
+              <dd className="mt-1 text-slate-700">{uploaderLabel}</dd>
+            </div>
+          ) : null}
+          {currentPassport.version_number ? (
+            <div>
+              <dt className="text-xs font-medium uppercase text-slate-400">
+                Версия
+              </dt>
+              <dd className="mt-1 text-slate-700">
+                {currentPassport.version_number}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      ) : null}
+
       {variant === "edit" ? (
         <div className="mt-4">
           <CheckboxField
@@ -614,21 +820,48 @@ function PassportProjectBlock({
         </div>
       ) : null}
 
+      {passportMessage ? (
+        <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+          {passportMessage}
+        </p>
+      ) : null}
+
+      {passportError ? (
+        <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          {passportError}
+        </p>
+      ) : null}
+
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <button
-          className="h-10 rounded-md border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-400"
-          disabled
+          className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+          disabled={!currentPassport || isBusy}
+          onClick={onDownload}
           type="button"
         >
-          Скачать паспорт — скоро
+          {isBusy ? "Готовим..." : "Скачать паспорт"}
         </button>
-        <button
-          className="h-10 rounded-md border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-400"
-          disabled
-          type="button"
-        >
-          Загрузить обновленный паспорт — скоро
-        </button>
+        {variant === "edit" ? (
+          <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950">
+            <span>
+              {isBusy ? "Загружаем..." : "Загрузить обновленный паспорт"}
+            </span>
+            <input
+              accept=".pdf,.docx,.pptx,.xlsx"
+              className="sr-only"
+              disabled={isBusy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+
+                if (file) {
+                  onUpload?.(file);
+                  event.target.value = "";
+                }
+              }}
+              type="file"
+            />
+          </label>
+        ) : null}
       </div>
 
       {/* Future implementation should connect this block to project_files and Supabase Storage: list passport file attached to project, download existing passport, upload updated passport version, update flagship_passport_uploaded automatically when passport file exists, and preserve manual fallback if needed. */}
@@ -886,6 +1119,103 @@ function getProjectDescriptionUploaded(project: ProjectDetail) {
     Boolean(project.flagship_solution_description?.trim()) &&
     Boolean(project.flagship_ai_functionality?.trim())
   );
+}
+
+function getPassportValidationError(file: File) {
+  const extension = getFileExtension(file.name);
+  const hasAllowedExtension = allowedPassportExtensions.includes(extension);
+  const inferredMimeType = passportMimeTypeByExtension[extension];
+  const hasAllowedMimeType =
+    !file.type ||
+    file.type === "application/octet-stream" ||
+    allowedPassportMimeTypes.includes(file.type) ||
+    file.type === inferredMimeType;
+
+  if (!hasAllowedExtension || !hasAllowedMimeType) {
+    return "Можно загрузить только PDF, DOCX, PPTX или XLSX.";
+  }
+
+  if (file.size > maxPassportSizeBytes) {
+    return "Размер файла паспорта не должен превышать 20 МБ.";
+  }
+
+  return null;
+}
+
+function getPassportMimeType(file: File) {
+  const extension = getFileExtension(file.name);
+
+  return passportMimeTypeByExtension[extension] ?? file.type;
+}
+
+function getFileExtension(fileName: string) {
+  const dotIndex = fileName.lastIndexOf(".");
+
+  return dotIndex >= 0 ? fileName.slice(dotIndex).toLowerCase() : "";
+}
+
+function getSafeFileName(fileName: string) {
+  const extension = getFileExtension(fileName);
+  const baseName = fileName
+    .slice(0, extension ? -extension.length : undefined)
+    .trim()
+    .toLowerCase()
+    .split("")
+    .map((character) => transliterateCharacter(character))
+    .join("")
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+
+  return `${baseName || "passport"}${extension}`;
+}
+
+function transliterateCharacter(character: string) {
+  const transliteration: Record<string, string> = {
+    а: "a",
+    б: "b",
+    в: "v",
+    г: "g",
+    д: "d",
+    е: "e",
+    ё: "e",
+    ж: "zh",
+    з: "z",
+    и: "i",
+    й: "y",
+    к: "k",
+    л: "l",
+    м: "m",
+    н: "n",
+    о: "o",
+    п: "p",
+    р: "r",
+    с: "s",
+    т: "t",
+    у: "u",
+    ф: "f",
+    х: "h",
+    ц: "ts",
+    ч: "ch",
+    ш: "sh",
+    щ: "sch",
+    ъ: "",
+    ы: "y",
+    ь: "",
+    э: "e",
+    ю: "yu",
+    я: "ya",
+  };
+
+  return transliteration[character] ?? character;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+
+  return "неизвестная ошибка";
 }
 
 function groupChanges(changes: ProjectChangeItem[]) {
