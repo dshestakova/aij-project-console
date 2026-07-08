@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import type { UserRole } from "@/types/project-registry";
 
 type UserHeaderProps = {
   email: string;
-  activePath?: "/dashboard" | "/projects" | "/ai-analyst";
+  activePath?: "/dashboard" | "/projects" | "/ai-analyst" | "/admin/users";
+  role?: UserRole | null;
 };
 
 const navigationItems = [
@@ -17,9 +19,13 @@ const navigationItems = [
   { href: "/ai-analyst", label: "AI-аналитик" },
 ];
 
-export function UserHeader({ activePath, email }: UserHeaderProps) {
+export function UserHeader({ activePath, email, role }: UserHeaderProps) {
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const visibleNavigationItems =
+    role === "admin"
+      ? [...navigationItems, { href: "/admin/users", label: "Пользователи" }]
+      : navigationItems;
 
   async function handleSignOut() {
     setIsSigningOut(true);
@@ -63,7 +69,7 @@ export function UserHeader({ activePath, email }: UserHeaderProps) {
       </div>
 
       <nav className="flex max-w-full gap-2 overflow-x-auto pb-1">
-        {navigationItems.map((item) => (
+        {visibleNavigationItems.map((item) => (
           <Link
             className={`h-10 shrink-0 rounded-md px-3 py-2 text-sm font-medium transition ${
               activePath === item.href

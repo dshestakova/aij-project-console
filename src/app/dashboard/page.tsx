@@ -10,6 +10,7 @@ import {
 } from "@/lib/project-registry/colors";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProjectRegistryData } from "@/lib/supabase/project-registry";
+import { getCurrentProfile } from "@/lib/supabase/profiles";
 import type {
   ColorKey,
   ProjectListItem,
@@ -26,6 +27,7 @@ export default async function DashboardPage() {
 
   const { clusters, errorMessage, projects, statuses } =
     await getProjectRegistryData();
+  const currentProfile = await getCurrentProfile();
 
   const activeProjects = projects.filter((project) => !project.is_archived);
   const archivedProjects = projects.filter((project) => project.is_archived);
@@ -63,6 +65,7 @@ export default async function DashboardPage() {
         <UserHeader
           activePath="/dashboard"
           email={user?.email ?? "Пользователь"}
+          role={currentProfile?.role}
         />
 
         <section className="flex min-w-0 flex-col gap-6 py-6">
