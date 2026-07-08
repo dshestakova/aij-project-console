@@ -1160,11 +1160,54 @@ function getSafeFileName(fileName: string) {
     .slice(0, extension ? -extension.length : undefined)
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9а-яё]+/gi, "-")
+    .split("")
+    .map((character) => transliterateCharacter(character))
+    .join("")
+    .replace(/[^a-z0-9]+/gi, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
 
   return `${baseName || "passport"}${extension}`;
+}
+
+function transliterateCharacter(character: string) {
+  const transliteration: Record<string, string> = {
+    а: "a",
+    б: "b",
+    в: "v",
+    г: "g",
+    д: "d",
+    е: "e",
+    ё: "e",
+    ж: "zh",
+    з: "z",
+    и: "i",
+    й: "y",
+    к: "k",
+    л: "l",
+    м: "m",
+    н: "n",
+    о: "o",
+    п: "p",
+    р: "r",
+    с: "s",
+    т: "t",
+    у: "u",
+    ф: "f",
+    х: "h",
+    ц: "ts",
+    ч: "ch",
+    ш: "sh",
+    щ: "sch",
+    ъ: "",
+    ы: "y",
+    ь: "",
+    э: "e",
+    ю: "yu",
+    я: "ya",
+  };
+
+  return transliteration[character] ?? character;
 }
 
 function getErrorMessage(error: unknown) {
