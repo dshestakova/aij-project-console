@@ -161,6 +161,7 @@ type DistributionItem = {
   name: string;
   color_key?: ColorKey | null;
   count: number;
+  href?: string;
 };
 
 const canonicalStatuses: Array<Pick<DistributionItem, "name" | "color_key">> = [
@@ -179,15 +180,18 @@ function getStatusDistribution(
     const reference = references.find(
       (item) => item.name.toLowerCase() === status.name.toLowerCase(),
     );
+    const matchingProjects = projects.filter(
+      (project) =>
+        project.status?.name.toLowerCase() === status.name.toLowerCase(),
+    );
+    const id = reference?.id ?? matchingProjects[0]?.status?.id;
 
     return {
-      id: reference?.id ?? `status-${status.name}`,
+      id: id ?? `status-${status.name}`,
       name: reference?.name ?? status.name,
       color_key: status.color_key,
-      count: projects.filter(
-        (project) =>
-          project.status?.name.toLowerCase() === status.name.toLowerCase(),
-      ).length,
+      count: matchingProjects.length,
+      href: id ? `/projects?status=${id}` : undefined,
     };
   });
 
@@ -204,6 +208,7 @@ function getStatusDistribution(
       ...reference,
       count: projects.filter((project) => project.status?.id === reference.id)
         .length,
+      href: `/projects?status=${reference.id}`,
     }));
 
   const missingCount = projects.filter((project) => !project.status).length;
@@ -216,6 +221,7 @@ function getStatusDistribution(
       name: "Без статуса",
       color_key: "gray",
       count: missingCount,
+      href: "/projects?status=__none",
     },
   ]);
 }
@@ -230,6 +236,7 @@ function getClusterDistribution(
       color_key: getClusterColorKey(reference.name, reference.color_key),
       count: projects.filter((project) => project.cluster?.id === reference.id)
         .length,
+      href: `/projects?cluster=${reference.id}`,
     }))
     .filter((item) => item.count > 0);
   const knownClusterIds = new Set(references.map((reference) => reference.id));
@@ -254,6 +261,7 @@ function getClusterDistribution(
           ...cluster,
           color_key: getClusterColorKey(cluster.name, cluster.color_key),
           count: 1,
+          href: `/projects?cluster=${cluster.id}`,
         });
       }
 
@@ -269,6 +277,7 @@ function getClusterDistribution(
       name: "Без кластера",
       color_key: "gray",
       count: missingCount,
+      href: "/projects?cluster=__none",
     },
   ]);
 }
@@ -341,12 +350,10 @@ function DistributionPanel({
           <span className="h-full w-full bg-slate-200" />
         ) : (
           visibleItems.map((item) => (
-            <span
-              aria-label={`${item.name} — ${getProjectCountLabel(item.count)}`}
-              className={`h-full min-w-1 ${getChartTone(item.color_key)}`}
+            <DistributionBarSegment
+              item={item}
               key={item.id}
-              style={{ width: `${(item.count / total) * 100}%` }}
-              title={`${item.name} — ${getProjectCountLabel(item.count)}`}
+              total={total}
             />
           ))
         )}
@@ -354,28 +361,77 @@ function DistributionPanel({
 
       <div className="mt-5 grid gap-2 sm:grid-cols-2">
         {items.map((item) => (
-          <div
-            className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 text-sm"
-            key={item.id}
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                className={`h-2.5 w-2.5 shrink-0 rounded-full ${getChartTone(
-                  item.color_key,
-                )}`}
-              />
-              <span className="truncate text-slate-700">{item.name}</span>
-            </span>
-            <span
-              className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-semibold ${getBadgeTone(
-                item.color_key,
-              )}`}
-            >
-              {item.count}
-            </span>
-          </div>
+          <DistributionCard item={item} key={item.id} />
         ))}
       </div>
     </section>
+  );
+}
+
+function DistributionBarSegment({
+  item,
+  total,
+}: {
+  item: DistributionItem;
+  total: number;
+}) {
+  const title = `${item.name} — ${getProjectCountLabel(item.count)}`;
+  const className = `h-full min-w-1 ${getChartTone(item.color_key)}`;
+  const style = { width: `${(item.count / total) * 100}%` };
+
+  return item.href ? (
+    <Link
+      aria-label={title}
+      className={`${className} cursor-pointer`}
+      href={item.href}
+      style={style}
+      title={title}
+    />
+  ) : (
+    <span
+      aria-label={title}
+      className={className}
+      style={style}
+      title={title}
+    />
+  );
+}
+
+function DistributionCard({ item }: { item: DistributionItem }) {
+  const content = (
+    <>
+      <span className="flex min-w-0 items-center gap-2">
+        <span
+          className={`h-2.5 w-2.5 shrink-0 rounded-full ${getChartTone(
+            item.color_key,
+          )}`}
+        />
+        <span className="truncate text-slate-700">{item.name}</span>
+      </span>
+      <span
+        className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-semibold ${getBadgeTone(
+          item.color_key,
+        )}`}
+      >
+        {item.count}
+      </span>
+    </>
+  );
+  const baseClassName =
+    "flex min-h-9 items-center justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 text-sm";
+  const title = `${item.name} — ${getProjectCountLabel(item.count)}`;
+
+  return item.href ? (
+    <Link
+      className={`${baseClassName} cursor-pointer transition hover:border-slate-200 hover:bg-white`}
+      href={item.href}
+      title={title}
+    >
+      {content}
+    </Link>
+  ) : (
+    <div className={baseClassName} title={title}>
+      {content}
+    </div>
   );
 }
