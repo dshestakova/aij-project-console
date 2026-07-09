@@ -80,18 +80,38 @@ The app uses current Supabase key naming:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-SUPABASE_SECRET_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-Only `NEXT_PUBLIC_*` values may be exposed to the browser. `SUPABASE_SECRET_KEY` is reserved for future server-side work and must never be committed or sent in chat.
+Only `NEXT_PUBLIC_*` values may be exposed to the browser. `SUPABASE_SERVICE_ROLE_KEY` is used only by server-side admin routes and must never be committed, sent in chat, or prefixed with `NEXT_PUBLIC_`.
 
 ## Supabase Auth
 
-Access is private. Users are created manually by an admin in Supabase Auth; the app does not expose public registration.
+Access is private. The app does not expose public registration.
 
 Protected routes are guarded with Supabase Auth cookies in middleware before protected page content is rendered. Current protected routes are `/dashboard`, `/projects`, and `/ai-analyst`. Public routes are `/` and `/login`.
 
-To create a test user:
+Admins can create users from `/admin/users`. The server route uses `SUPABASE_SERVICE_ROLE_KEY` to create the Supabase Auth user, creates or updates the matching `public.profiles` row, and returns the generated temporary password once. The password is not stored in the database.
+
+Manual setup for admin user creation:
+
+1. Open Supabase Dashboard.
+2. Go to Project Settings -> API.
+3. Copy the service role key. Do not paste it into chat or commit it.
+4. Add it locally to `.env.local`:
+
+```bash
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+5. Add the same variable to Vercel Environment Variables for the project:
+   - name: `SUPABASE_SERVICE_ROLE_KEY`;
+   - value: the Supabase service role key;
+   - environments: Preview and Production as needed.
+6. Redeploy Vercel after adding the variable.
+7. Do not use a `NEXT_PUBLIC_` prefix for this value.
+
+To create a test user manually instead:
 
 1. Open Supabase Dashboard.
 2. Go to Authentication -> Users.
