@@ -19,7 +19,7 @@ export function PortfolioAnalytics({ data }: PortfolioAnalyticsProps) {
   )?.count ?? 0;
 
   return (
-    <section className="flex flex-col gap-7">
+    <section className="flex flex-col gap-6">
       {data.errorMessage ? (
         <section className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
           {data.errorMessage}
@@ -44,7 +44,7 @@ export function PortfolioAnalytics({ data }: PortfolioAnalyticsProps) {
         />
       </div>
 
-      <div className="grid gap-6 2xl:grid-cols-2">
+      <div className="grid gap-5 2xl:grid-cols-2">
         <SegmentPanel
           description="Активные проекты по текущим статусам, включая проекты без статуса."
           segments={data.statusSegments}
@@ -67,7 +67,7 @@ export function PortfolioAnalytics({ data }: PortfolioAnalyticsProps) {
         directors={data.directorGroups}
       />
 
-      <div className="grid gap-6 2xl:grid-cols-2">
+      <div className="grid gap-5 2xl:grid-cols-2">
         <FlagshipAnalytics
           readiness={data.flagshipReadiness}
           split={data.flagshipSplit}
@@ -116,7 +116,7 @@ function SegmentPanel({
     <DownloadablePanel fileName={slugify(title)}>
       <PanelHeader description={description} title={title} />
       <SegmentedBar segments={segments} total={total} />
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
         {segments.map((segment) => (
           <SegmentCard key={segment.key} segment={segment} total={total} />
         ))}
@@ -141,7 +141,7 @@ function SegmentedBar({
   }
 
   return (
-    <div className="mt-5 flex h-10 overflow-hidden rounded-md bg-slate-100">
+    <div className="mt-4 flex h-9 overflow-hidden rounded-md bg-slate-100">
       {segments
         .filter((segment) => segment.count > 0)
         .map((segment) => {
@@ -189,7 +189,7 @@ function SegmentCard({
     </>
   );
   const className =
-    "flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition hover:border-slate-300 hover:bg-white";
+    "flex items-start gap-2.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm transition hover:border-slate-300 hover:bg-white";
   const title = `${segment.label} — ${segment.count} проектов`;
 
   return segment.href ? (
@@ -219,10 +219,10 @@ function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"]
         description="Компактная матрица по CSM: строка CSM слева, справа горизонтальные клиентские проекты со статусной заливкой."
         title="CSM-матрица"
       />
-      <div className="mt-4 flex flex-wrap gap-2.5">
+      <div className="mt-3 flex flex-wrap gap-2">
         {statusLegend.map((item) => (
           <span
-            className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600"
+            className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600"
             key={item.label}
           >
             <span
@@ -236,27 +236,27 @@ function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"]
       {projects.length === 0 ? (
         <EmptyState text="Активных проектов для CSM-матрицы пока нет." />
       ) : (
-        <div className="mt-5 overflow-x-auto">
-          <div className="flex min-w-[780px] flex-col gap-4">
+        <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
+          <div className="min-w-[760px] divide-y divide-slate-200">
             {projects.map((group) => (
               <article
-                className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[210px_1fr]"
+                className="grid gap-3 bg-slate-50 px-3 py-2.5 lg:grid-cols-[190px_1fr]"
                 key={group.id}
               >
                 <div>
-                  <p className="text-base font-semibold text-slate-950">
+                  <p className="text-sm font-semibold text-slate-950">
                     {group.name}
                   </p>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-0.5 text-xs text-slate-500">
                     {group.count} проектов
                   </p>
                 </div>
                 {group.projects.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-400">
+                  <div className="rounded-md border border-dashed border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-400">
                     Проектов нет
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-2.5">
+                  <div className="flex flex-wrap gap-1.5">
                     {group.projects.map((project) => (
                       <ProjectPill key={project.id} project={project} />
                     ))}
@@ -283,7 +283,7 @@ function ProjectPill({ project }: { project: ProjectListItem }) {
 
   return (
     <Link
-      className={`max-w-[190px] truncate rounded-md px-3.5 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+      className={`max-w-[170px] truncate rounded-md px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
         project.is_flagship ? "border-[3px]" : ""
       }`}
       href={`/projects/${project.id}`}

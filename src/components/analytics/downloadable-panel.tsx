@@ -27,7 +27,8 @@ export function DownloadablePanel({
 
     try {
       await downloadElementAsPng(panelRef.current, fileName);
-    } catch {
+    } catch (error) {
+      console.error("Analytics image export failed", error);
       setErrorMessage(
         "Не удалось скачать изображение. Попробуйте обновить страницу или открыть блок в другом браузере.",
       );
@@ -66,90 +67,180 @@ export function DownloadablePanel({
 async function downloadElementAsPng(element: HTMLElement, fileName: string) {
   await document.fonts.ready;
 
-  const clone = element.cloneNode(true) as HTMLElement;
-  clone
-    .querySelectorAll("[data-export-ignore='true']")
-    .forEach((node) => node.remove());
   const width = Math.ceil(element.scrollWidth);
   const height = Math.ceil(element.scrollHeight);
+  const origin = element.getBoundingClientRect();
+  const canvas = document.createElement("canvas");
+  const scale = Math.max(window.devicePixelRatio || 1, 2);
+  canvas.width = width * scale;
+  canvas.height = height * scale;
 
-  clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
-  clone.style.width = `${width}px`;
-  clone.style.minHeight = `${height}px`;
-  clone.style.background = "#ffffff";
-  inlineComputedStyles(element, clone);
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Canvas context is unavailable");
+  }
 
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-      <foreignObject width="100%" height="100%">
-        ${new XMLSerializer().serializeToString(clone)}
-      </foreignObject>
-    </svg>
-  `;
-  const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-  const svgUrl = URL.createObjectURL(svgBlob);
+  context.scale(scale, scale);
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  renderElementToCanvas(element, context, origin);
 
-  try {
-    const image = await loadImage(svgUrl);
-    await image.decode?.();
-    const canvas = document.createElement("canvas");
-    const scale = Math.max(window.devicePixelRatio || 1, 2);
-    canvas.width = width * scale;
-    canvas.height = height * scale;
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((result) => {
+      if (result) {
+        resolve(result);
+      } else {
+        reject(new Error("Canvas export failed"));
+      }
+    }, "image/png");
+  });
+  const pngUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = pngUrl;
+  link.download = `${fileName}.png`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(pngUrl);
+}
 
-    const context = canvas.getContext("2d");
-    if (!context) {
-      throw new Error("Canvas context is unavailable");
+function renderElementToCanvas(
+  element: Element,
+  context: CanvasRenderingContext2D,
+  origin: DOMRect,
+) {
+  if (element instanceof HTMLElement && element.dataset.exportIgnore === "true") {
+    return;
+  }
+
+  const style = window.getComputedStyle(element);
+
+  if (style.display === "none" || style.visibility === "hidden") {
+    return;
+  }
+
+  const rect = element.getBoundingClientRect();
+  const x = rect.left - origin.left;
+  const y = rect.top - origin.top;
+
+  drawBox(context, style, x, y, rect.width, rect.height);
+
+  element.childNodes.forEach((node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      drawTextNode(node, context, origin);
+    } else if (node instanceof Element) {
+      renderElementToCanvas(node, context, origin);
     }
+  });
+}
 
-    context.scale(scale, scale);
-    context.fillStyle = "#f5f7fb";
-    context.fillRect(0, 0, width, height);
-    context.drawImage(image, 0, 0);
+function drawBox(
+  context: CanvasRenderingContext2D,
+  style: CSSStyleDeclaration,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
 
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((result) => {
-        if (result) {
-          resolve(result);
-        } else {
-          reject(new Error("Canvas export failed"));
-        }
-      }, "image/png");
-    });
-    const pngUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = pngUrl;
-    link.download = `${fileName}.png`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(pngUrl);
-  } finally {
-    URL.revokeObjectURL(svgUrl);
+  const radius = parseFloat(style.borderRadius) || 0;
+  const background = style.backgroundColor;
+  const borderColor = style.borderColor;
+  const borderWidth = parseFloat(style.borderWidth) || 0;
+
+  if (background && background !== "rgba(0, 0, 0, 0)") {
+    context.fillStyle = background;
+    roundedRect(context, x, y, width, height, radius);
+    context.fill();
+  }
+
+  if (
+    borderWidth > 0 &&
+    borderColor &&
+    borderColor !== "rgba(0, 0, 0, 0)"
+  ) {
+    context.strokeStyle = borderColor;
+    context.lineWidth = borderWidth;
+    roundedRect(
+      context,
+      x + borderWidth / 2,
+      y + borderWidth / 2,
+      width - borderWidth,
+      height - borderWidth,
+      Math.max(radius - borderWidth / 2, 0),
+    );
+    context.stroke();
   }
 }
 
-function loadImage(src: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = reject;
-    image.src = src;
-  });
+function drawTextNode(
+  node: Node,
+  context: CanvasRenderingContext2D,
+  origin: DOMRect,
+) {
+  const text = node.textContent?.replace(/\s+/g, " ").trim();
+  const parent = node.parentElement;
+
+  if (!text || !parent) {
+    return;
+  }
+
+  const style = window.getComputedStyle(parent);
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  const rect = range.getBoundingClientRect();
+  range.detach();
+
+  if (rect.width <= 0 || rect.height <= 0) {
+    return;
+  }
+
+  context.fillStyle = style.color || "#0f172a";
+  context.font = [
+    style.fontStyle,
+    style.fontVariant,
+    style.fontWeight,
+    style.fontSize,
+    style.fontFamily,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  context.textBaseline = "alphabetic";
+  context.fillText(
+    text,
+    rect.left - origin.left,
+    rect.top - origin.top + parseFloat(style.fontSize) * 0.9,
+    rect.width,
+  );
 }
 
-function inlineComputedStyles(source: Element, target: Element) {
-  const computedStyle = window.getComputedStyle(source);
-  const cssText = Array.from(computedStyle)
-    .map((property) => `${property}:${computedStyle.getPropertyValue(property)};`)
-    .join("");
+function roundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
 
-  target.setAttribute("style", `${target.getAttribute("style") ?? ""};${cssText}`);
-
-  Array.from(source.children).forEach((sourceChild, index) => {
-    const targetChild = target.children.item(index);
-    if (targetChild) {
-      inlineComputedStyles(sourceChild, targetChild);
-    }
-  });
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.lineTo(x + width - safeRadius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  context.lineTo(x + width, y + height - safeRadius);
+  context.quadraticCurveTo(
+    x + width,
+    y + height,
+    x + width - safeRadius,
+    y + height,
+  );
+  context.lineTo(x + safeRadius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  context.lineTo(x, y + safeRadius);
+  context.quadraticCurveTo(x, y, x + safeRadius, y);
+  context.closePath();
 }
