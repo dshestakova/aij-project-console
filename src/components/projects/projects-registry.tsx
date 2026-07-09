@@ -3,24 +3,59 @@
 import { useMemo, useState } from "react";
 
 import { ProjectCard } from "@/components/projects/project-card";
-import type { ProjectListItem, ReferenceItem } from "@/types/project-registry";
+import type {
+  PersonReference,
+  ProjectListItem,
+  ReferenceItem,
+} from "@/types/project-registry";
 
 type ProjectsRegistryProps = {
   projects: ProjectListItem[];
   statuses: ReferenceItem[];
   clusters: ReferenceItem[];
+  flagshipStatuses: ReferenceItem[];
+  csms: PersonReference[];
+  directors: PersonReference[];
+  industryUnits: Array<Pick<ReferenceItem, "id" | "name">>;
+  initialFilters?: {
+    statusId?: string;
+    clusterId?: string;
+    csmId?: string;
+    directorId?: string;
+    industryUnitId?: string;
+    flagshipStatusId?: string;
+    flagship?: string;
+    archiveMode?: string;
+  };
 };
 
 export function ProjectsRegistry({
   clusters,
+  csms,
+  directors,
+  flagshipStatuses,
+  industryUnits,
+  initialFilters,
   projects,
   statuses,
 }: ProjectsRegistryProps) {
   const [query, setQuery] = useState("");
-  const [statusId, setStatusId] = useState("all");
-  const [clusterId, setClusterId] = useState("all");
-  const [flagship, setFlagship] = useState("all");
-  const [archiveMode, setArchiveMode] = useState("active");
+  const [statusId, setStatusId] = useState(initialFilters?.statusId ?? "all");
+  const [clusterId, setClusterId] = useState(initialFilters?.clusterId ?? "all");
+  const [csmId, setCsmId] = useState(initialFilters?.csmId ?? "all");
+  const [directorId, setDirectorId] = useState(
+    initialFilters?.directorId ?? "all",
+  );
+  const [industryUnitId, setIndustryUnitId] = useState(
+    initialFilters?.industryUnitId ?? "all",
+  );
+  const [flagshipStatusId, setFlagshipStatusId] = useState(
+    initialFilters?.flagshipStatusId ?? "all",
+  );
+  const [flagship, setFlagship] = useState(initialFilters?.flagship ?? "all");
+  const [archiveMode, setArchiveMode] = useState(
+    initialFilters?.archiveMode ?? "active",
+  );
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -36,11 +71,71 @@ export function ProjectsRegistry({
         return false;
       }
 
-      if (statusId !== "all" && project.status?.id !== statusId) {
+      if (statusId === "__none" && project.status) {
         return false;
       }
 
-      if (clusterId !== "all" && project.cluster?.id !== clusterId) {
+      if (
+        statusId !== "all" &&
+        statusId !== "__none" &&
+        project.status?.id !== statusId
+      ) {
+        return false;
+      }
+
+      if (clusterId === "__none" && project.cluster) {
+        return false;
+      }
+
+      if (
+        clusterId !== "all" &&
+        clusterId !== "__none" &&
+        project.cluster?.id !== clusterId
+      ) {
+        return false;
+      }
+
+      if (csmId === "__none" && project.csm) {
+        return false;
+      }
+
+      if (csmId !== "all" && csmId !== "__none" && project.csm?.id !== csmId) {
+        return false;
+      }
+
+      if (directorId === "__none" && project.director) {
+        return false;
+      }
+
+      if (
+        directorId !== "all" &&
+        directorId !== "__none" &&
+        project.director?.id !== directorId
+      ) {
+        return false;
+      }
+
+      if (industryUnitId === "__none" && project.industry_unit) {
+        return false;
+      }
+
+      if (
+        industryUnitId !== "all" &&
+        industryUnitId !== "__none" &&
+        project.industry_unit?.id !== industryUnitId
+      ) {
+        return false;
+      }
+
+      if (flagshipStatusId === "__none" && project.flagship_status) {
+        return false;
+      }
+
+      if (
+        flagshipStatusId !== "all" &&
+        flagshipStatusId !== "__none" &&
+        project.flagship_status?.id !== flagshipStatusId
+      ) {
         return false;
       }
 
@@ -63,17 +158,35 @@ export function ProjectsRegistry({
         project.next_step,
         project.status?.name,
         project.cluster?.name,
+        project.csm?.full_name,
+        project.director?.full_name,
+        project.industry_unit?.name,
       ]
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(normalizedQuery));
     });
-  }, [archiveMode, clusterId, flagship, projects, query, statusId]);
+  }, [
+    archiveMode,
+    clusterId,
+    csmId,
+    directorId,
+    flagship,
+    flagshipStatusId,
+    industryUnitId,
+    projects,
+    query,
+    statusId,
+  ]);
 
   const hasAnyProjects = projects.length > 0;
   const hasActiveFilters =
     query.trim() ||
     statusId !== "all" ||
     clusterId !== "all" ||
+    csmId !== "all" ||
+    directorId !== "all" ||
+    industryUnitId !== "all" ||
+    flagshipStatusId !== "all" ||
     flagship !== "all" ||
     archiveMode !== "active";
 
@@ -124,7 +237,7 @@ export function ProjectsRegistry({
     <section className="flex flex-col gap-4">
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-          <div className="grid flex-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_repeat(4,minmax(150px,auto))]">
+          <div className="grid flex-1 gap-3 lg:grid-cols-4 xl:grid-cols-[minmax(220px,1.4fr)_repeat(7,minmax(140px,1fr))]">
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Поиск</span>
               <input
@@ -140,13 +253,49 @@ export function ProjectsRegistry({
               label="Статус"
               onChange={setStatusId}
               options={statuses}
+              missingLabel="Без статуса"
               value={statusId}
             />
             <FilterSelect
               label="Кластер"
               onChange={setClusterId}
               options={clusters}
+              missingLabel="Без кластера"
               value={clusterId}
+            />
+            <FilterSelect
+              label="CSM"
+              onChange={setCsmId}
+              options={csms.map((csm) => ({
+                id: csm.id,
+                name: csm.full_name,
+              }))}
+              missingLabel="Без CSM"
+              value={csmId}
+            />
+            <FilterSelect
+              label="Директор"
+              onChange={setDirectorId}
+              options={directors.map((director) => ({
+                id: director.id,
+                name: director.full_name,
+              }))}
+              missingLabel="Без директора"
+              value={directorId}
+            />
+            <FilterSelect
+              label="Отрасль"
+              onChange={setIndustryUnitId}
+              options={industryUnits}
+              missingLabel="Без отраслевого управления"
+              value={industryUnitId}
+            />
+            <FilterSelect
+              label="Статус флагмана"
+              onChange={setFlagshipStatusId}
+              options={flagshipStatuses}
+              missingLabel="Без статуса"
+              value={flagshipStatusId}
             />
             <label className="block">
               <span className="text-sm font-medium text-slate-700">
@@ -201,7 +350,7 @@ export function ProjectsRegistry({
           title="По этим фильтрам ничего не найдено"
           description={
             hasActiveFilters
-              ? "Попробуйте изменить поиск, статус, кластер или режим архива."
+              ? "Попробуйте изменить поиск или выбранные фильтры."
               : "Проекты есть в базе, но текущий список пуст."
           }
         />
@@ -225,13 +374,15 @@ function getDownloadFilename(headers: Headers) {
 
 function FilterSelect({
   label,
+  missingLabel,
   onChange,
   options,
   value,
 }: {
   label: string;
+  missingLabel?: string;
   onChange: (value: string) => void;
-  options: ReferenceItem[];
+  options: Array<Pick<ReferenceItem, "id" | "name">>;
   value: string;
 }) {
   return (
@@ -243,6 +394,7 @@ function FilterSelect({
         value={value}
       >
         <option value="all">Все</option>
+        {missingLabel ? <option value="__none">{missingLabel}</option> : null}
         {options.map((option) => (
           <option key={option.id} value={option.id}>
             {option.name}

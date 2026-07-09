@@ -50,14 +50,24 @@ export type ProjectListItem = {
   updated_at: string;
   cluster_id: string | null;
   status_id: string | null;
+  csm_id: string | null;
+  director_id: string | null;
+  industry_unit_id: string | null;
   flagship_status_id: string | null;
+  essence: string | null;
+  flagship_description_uploaded: boolean;
+  flagship_innovation_level: "высокий" | "средний" | "низкий" | null;
+  flagship_uploaded_to_prbr: boolean;
+  flagship_approved_by_ca: boolean;
   cluster: ReferenceItem | null;
   status: ReferenceItem | null;
   flagship_status: ReferenceItem | null;
+  csm: PersonReference | null;
+  director: PersonReference | null;
+  industry_unit: Pick<ReferenceItem, "id" | "name"> | null;
 };
 
 export type ProjectDetail = ProjectListItem & {
-  essence: string | null;
   progress: string | null;
   funding: string | null;
   funding_status: string | null;
@@ -65,17 +75,6 @@ export type ProjectDetail = ProjectListItem & {
   flagship_problem_description: string | null;
   flagship_solution_description: string | null;
   flagship_ai_functionality: string | null;
-  flagship_description_uploaded: boolean;
-  flagship_passport_uploaded: boolean;
-  flagship_innovation_level: "высокий" | "средний" | "низкий" | null;
-  flagship_uploaded_to_prbr: boolean;
-  flagship_approved_by_ca: boolean;
-  csm_id: string | null;
-  director_id: string | null;
-  industry_unit_id: string | null;
-  csm: PersonReference | null;
-  director: PersonReference | null;
-  industry_unit: Pick<ReferenceItem, "id" | "name"> | null;
 };
 
 export type ProjectEditReferences = {
@@ -118,5 +117,9 @@ export type ProjectRegistryData = {
   projects: ProjectListItem[];
   statuses: ReferenceItem[];
   clusters: ReferenceItem[];
+  flagshipStatuses: ReferenceItem[];
+  csms: PersonReference[];
+  directors: PersonReference[];
+  industryUnits: Array<Pick<ReferenceItem, "id" | "name">>;
   errorMessage: string | null;
 };

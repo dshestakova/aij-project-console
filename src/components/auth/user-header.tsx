@@ -9,13 +9,19 @@ import type { UserRole } from "@/types/project-registry";
 
 type UserHeaderProps = {
   email: string;
-  activePath?: "/dashboard" | "/projects" | "/ai-analyst" | "/admin/users";
+  activePath?:
+    | "/dashboard"
+    | "/projects"
+    | "/analytics"
+    | "/ai-analyst"
+    | "/admin/users";
   role?: UserRole | null;
 };
 
 const navigationItems = [
   { href: "/dashboard", label: "Дашборд" },
   { href: "/projects", label: "Проекты" },
+  { href: "/analytics", label: "Аналитика" },
   { href: "/ai-analyst", label: "AI-аналитик" },
 ];
 

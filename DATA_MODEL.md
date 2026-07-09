@@ -168,6 +168,33 @@ Fields:
 - `created_at` timestamptz.
 - `updated_at` timestamptz.
 
+### `director_csm_assignments`
+
+Organizational assignment table for director-CSM-industry analytics.
+
+Fields:
+
+- `id` uuid primary key.
+- `external_id` text, unique stable assignment code from the source system.
+- `director_id` uuid, nullable, references `people.id`.
+- `director_name` text.
+- `industry_unit_id` uuid, nullable, references `industry_units.id`.
+- `industry_unit_name` text.
+- `csm_id` uuid, nullable, references `people.id`.
+- `csm_name` text.
+- `is_active` boolean.
+- `comment` text, nullable.
+- `sort_order` integer, nullable.
+- `created_at` timestamptz.
+- `updated_at` timestamptz.
+- `updated_by` uuid, nullable, references `profiles.id`.
+
+Notes:
+
+- One active row represents one CSM assignment to one director and one industry unit.
+- The table is designed for a later CSV or Google Sheets load; this PR does not add an assignment importer.
+- Portfolio analytics reads active assignments when present and falls back to project-level `director_id`, `csm_id`, and `industry_unit_id` fields when the table is empty.
+
 ### `project_changes`
 
 History of meaningful project changes.
@@ -283,6 +310,7 @@ Fields:
 - `profiles` are readable by the owner and by admins.
 - Reference tables are writable only by admins.
 - `projects`, `project_changes`, and `project_files` are writable by admins and editors.
+- `director_csm_assignments` active rows are readable by authenticated users and writable by admins/editors.
 - Physical deletes for projects, changes, and file metadata are intentionally not exposed; project archiving and file soft deletion should use updates.
 - `audit_log` is readable only by admins in the initial policy set.
 - `ai_queries` are readable by the owning user and admins; users may insert their own future query records.

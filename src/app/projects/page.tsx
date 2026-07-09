@@ -6,14 +6,27 @@ import { getCurrentProfile } from "@/lib/supabase/profiles";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectsPage() {
+type ProjectsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
+  const resolvedSearchParams = await searchParams;
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { clusters, errorMessage, projects, statuses } =
-    await getProjectRegistryData();
+  const {
+    clusters,
+    csms,
+    directors,
+    errorMessage,
+    flagshipStatuses,
+    industryUnits,
+    projects,
+    statuses,
+  } = await getProjectRegistryData();
   const currentProfile = await getCurrentProfile();
 
   return (
@@ -52,6 +65,11 @@ export default async function ProjectsPage() {
 
           <ProjectsRegistry
             clusters={clusters}
+            csms={csms}
+            directors={directors}
+            flagshipStatuses={flagshipStatuses}
+            industryUnits={industryUnits}
+            initialFilters={getInitialFilters(resolvedSearchParams)}
             projects={projects}
             statuses={statuses}
           />
@@ -59,4 +77,51 @@ export default async function ProjectsPage() {
       </div>
     </main>
   );
+}
+
+function getInitialFilters(
+  searchParams: Record<string, string | string[] | undefined>,
+) {
+  return {
+    statusId: getParam(searchParams.status),
+    clusterId: getParam(searchParams.cluster),
+    csmId: getParam(searchParams.csm),
+    directorId: getParam(searchParams.director),
+    industryUnitId: getParam(searchParams.industry_unit),
+    flagshipStatusId: getParam(searchParams.flagship_status),
+    flagship: getFlagshipParam(searchParams.flagship),
+    archiveMode: getArchiveParam(searchParams.archive ?? searchParams.archived),
+  };
+}
+
+function getParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] ?? "all" : value ?? "all";
+}
+
+function getFlagshipParam(value: string | string[] | undefined) {
+  const param = getParam(value);
+
+  if (param === "true") {
+    return "yes";
+  }
+
+  if (param === "false") {
+    return "no";
+  }
+
+  return "all";
+}
+
+function getArchiveParam(value: string | string[] | undefined) {
+  const param = getParam(value);
+
+  if (param === "all" || param === "archived" || param === "active") {
+    return param;
+  }
+
+  if (param === "true") {
+    return "archived";
+  }
+
+  return "active";
 }
