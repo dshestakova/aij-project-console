@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DownloadablePanel } from "@/components/analytics/downloadable-panel";
 import {
   getStatusColor,
   type AnalyticsSegment,
@@ -112,7 +113,7 @@ function SegmentPanel({
   total: number;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <DownloadablePanel fileName={slugify(title)}>
       <PanelHeader description={description} title={title} />
       <SegmentedBar segments={segments} total={total} />
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -120,7 +121,7 @@ function SegmentPanel({
           <SegmentCard key={segment.key} segment={segment} total={total} />
         ))}
       </div>
-    </section>
+    </DownloadablePanel>
   );
 }
 
@@ -203,12 +204,35 @@ function SegmentCard({
 }
 
 function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"] }) {
+  const statusLegend = [
+    { label: "идея/КП", color: "#f59e0b" },
+    { label: "факт оплаты", color: "#16a34a" },
+    { label: "уточнение ТЗ", color: "#2563eb" },
+    { label: "в разработке", color: "#7c3aed" },
+    { label: "на паузе", color: "#64748b" },
+    { label: "Без статуса", color: "#94a3b8" },
+  ];
+
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <DownloadablePanel fileName="csm-matrix">
       <PanelHeader
-        description="Единственная CSM-матрица: группы отсортированы по числу проектов, внутри проекты разложены по клиентам."
+        description="Компактная матрица по CSM: строка CSM слева, справа горизонтальные клиентские проекты со статусной заливкой."
         title="CSM-матрица"
       />
+      <div className="mt-3 flex flex-wrap gap-2">
+        {statusLegend.map((item) => (
+          <span
+            className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600"
+            key={item.label}
+          >
+            <span
+              className="h-3 w-3 rounded-sm"
+              style={{ backgroundColor: item.color }}
+            />
+            {item.label}
+          </span>
+        ))}
+      </div>
       {projects.length === 0 ? (
         <EmptyState text="Активных проектов для CSM-матрицы пока нет." />
       ) : (
@@ -216,7 +240,7 @@ function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"]
           <div className="flex min-w-[760px] flex-col gap-3">
             {projects.map((group) => (
               <article
-                className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 lg:grid-cols-[220px_1fr]"
+                className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 lg:grid-cols-[190px_1fr]"
                 key={group.id}
               >
                 <div>
@@ -227,26 +251,23 @@ function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"]
                     {group.count} проектов
                   </p>
                 </div>
-                <div className="grid gap-3">
-                  {group.clients.map((client) => (
-                    <div key={client.name}>
-                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">
-                        {client.name} · {client.projects.length}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {client.projects.map((project) => (
-                          <ProjectPill key={project.id} project={project} />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {group.projects.length === 0 ? (
+                  <div className="rounded-md border border-dashed border-slate-200 bg-white px-3 py-2 text-sm text-slate-400">
+                    Проектов нет
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {group.projects.map((project) => (
+                      <ProjectPill key={project.id} project={project} />
+                    ))}
+                  </div>
+                )}
               </article>
             ))}
           </div>
         </div>
       )}
-    </section>
+    </DownloadablePanel>
   );
 }
 
@@ -262,17 +283,17 @@ function ProjectPill({ project }: { project: ProjectListItem }) {
 
   return (
     <Link
-      className={`max-w-[240px] truncate rounded-md border bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+      className={`max-w-[180px] truncate rounded-md px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
         project.is_flagship ? "border-2" : ""
       }`}
       href={`/projects/${project.id}`}
       style={{
-        borderColor: project.is_flagship ? "#4f46e5" : color,
-        boxShadow: `inset 4px 0 0 ${color}`,
+        backgroundColor: color,
+        borderColor: project.is_flagship ? "#111827" : "transparent",
       }}
       title={title}
     >
-      {project.external_id} · {project.project_name || "Без названия"}
+      {project.client || "Без клиента"}
     </Link>
   );
 }
@@ -287,9 +308,9 @@ function DirectorAnalytics({
   directors: PortfolioAnalyticsData["directorGroups"];
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <DownloadablePanel fileName="director-analytics">
       <PanelHeader
-        description="Иерархия Director → Industry unit → CSM с суммарной нагрузкой и средним числом проектов на CSM."
+        description="Директорская структура с отраслевыми управлениями и разбивкой проектов по кластерам внутри каждого директора."
         title="Директорская структура"
       />
       <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
@@ -310,12 +331,24 @@ function DirectorAnalytics({
               key={director.id}
             >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <Link
-                  className="text-lg font-semibold text-slate-950 transition hover:text-slate-600"
-                  href={director.href}
-                >
-                  {director.name}
-                </Link>
+                <div>
+                  <Link
+                    className="text-lg font-semibold text-slate-950 transition hover:text-slate-600"
+                    href={director.href}
+                  >
+                    {director.name}
+                  </Link>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {director.industries.map((industry) => (
+                      <span
+                        className="rounded-md bg-white px-2 py-1 text-xs font-medium text-slate-500"
+                        key={industry.id}
+                      >
+                        {industry.name}: {industry.totalProjects}
+                      </span>
+                    ))}
+                  </div>
+                </div>
                 <div className="text-sm text-slate-600 sm:text-right">
                   <p>{director.totalProjects} проектов</p>
                   <p>
@@ -325,16 +358,19 @@ function DirectorAnalytics({
               </div>
 
               <div className="mt-4 grid gap-3">
-                {director.industries.map((industry) => (
+                {director.clusters.map((cluster) => (
                   <div
                     className="rounded-md border border-slate-200 bg-white p-3"
-                    key={industry.id}
+                    key={cluster.id}
                   >
-                    <p className="text-sm font-semibold text-slate-800">
-                      {industry.name} · {industry.totalProjects}
-                    </p>
+                    <Link
+                      className="text-sm font-semibold text-slate-800 transition hover:text-slate-600"
+                      href={cluster.href}
+                    >
+                      {cluster.name} · {cluster.totalProjects}
+                    </Link>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {industry.csms.map((csm) => (
+                      {cluster.csms.map((csm) => (
                         <Link
                           className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
                           href={csm.href}
@@ -352,7 +388,7 @@ function DirectorAnalytics({
           ))}
         </div>
       )}
-    </section>
+    </DownloadablePanel>
   );
 }
 
@@ -368,7 +404,7 @@ function FlagshipAnalytics({
   totalFlagship: number;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <DownloadablePanel fileName="flagship-analytics">
       <PanelHeader
         description="Доля флагманских проектов, статусы и готовность паспортного контура."
         title="Флагманская аналитика"
@@ -410,7 +446,7 @@ function FlagshipAnalytics({
           </div>
         ))}
       </div>
-    </section>
+    </DownloadablePanel>
   );
 }
 
@@ -422,7 +458,7 @@ function DataQualityPanel({
   total: number;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <DownloadablePanel fileName="data-quality">
       <PanelHeader
         description="Оценка по 8 ключевым полям: клиент, название, суть, статус, кластер, CSM, директор, следующий шаг."
         title="Качество заполнения карточек"
@@ -437,7 +473,7 @@ function DataQualityPanel({
         Порог: 7-8 заполненных полей — хорошо, 4-6 — частично, 0-3 — много
         пустых полей. URL-фильтр качества можно добавить отдельным шагом.
       </p>
-    </section>
+    </DownloadablePanel>
   );
 }
 
@@ -466,4 +502,11 @@ function EmptyState({ text }: { text: string }) {
 
 function getPercent(count: number, total: number) {
   return total ? Math.round((count / total) * 100) : 0;
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replaceAll(" ", "-")
+    .replace(/[^a-zа-я0-9-]/g, "");
 }
