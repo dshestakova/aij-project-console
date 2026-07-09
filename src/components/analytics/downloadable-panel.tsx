@@ -15,6 +15,7 @@ export function DownloadablePanel({
 }: DownloadablePanelProps) {
   const panelRef = useRef<HTMLElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleDownload() {
     if (!panelRef.current) {
@@ -22,9 +23,14 @@ export function DownloadablePanel({
     }
 
     setIsDownloading(true);
+    setErrorMessage(null);
 
     try {
       await downloadElementAsPng(panelRef.current, fileName);
+    } catch {
+      setErrorMessage(
+        "Не удалось скачать изображение. Попробуйте обновить страницу или открыть блок в другом браузере.",
+      );
     } finally {
       setIsDownloading(false);
     }
@@ -32,11 +38,11 @@ export function DownloadablePanel({
 
   return (
     <section
-      className={`relative rounded-lg border border-slate-200 bg-white p-4 shadow-sm ${className}`}
+      className={`relative rounded-lg border border-slate-200 bg-white p-6 shadow-sm ${className}`}
       ref={panelRef}
     >
       <button
-        className="absolute right-4 top-4 h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-400"
+        className="absolute right-5 top-5 h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-400"
         data-export-ignore="true"
         disabled={isDownloading}
         onClick={handleDownload}
@@ -45,6 +51,14 @@ export function DownloadablePanel({
         {isDownloading ? "Готовим..." : "Скачать"}
       </button>
       <div className="pr-28">{children}</div>
+      {errorMessage ? (
+        <p
+          className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700"
+          data-export-ignore="true"
+        >
+          {errorMessage}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -56,10 +70,15 @@ async function downloadElementAsPng(element: HTMLElement, fileName: string) {
   clone
     .querySelectorAll("[data-export-ignore='true']")
     .forEach((node) => node.remove());
-  inlineComputedStyles(element, clone);
-
   const width = Math.ceil(element.scrollWidth);
   const height = Math.ceil(element.scrollHeight);
+
+  clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  clone.style.width = `${width}px`;
+  clone.style.minHeight = `${height}px`;
+  clone.style.background = "#ffffff";
+  inlineComputedStyles(element, clone);
+
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
       <foreignObject width="100%" height="100%">
@@ -72,6 +91,7 @@ async function downloadElementAsPng(element: HTMLElement, fileName: string) {
 
   try {
     const image = await loadImage(svgUrl);
+    await image.decode?.();
     const canvas = document.createElement("canvas");
     const scale = Math.max(window.devicePixelRatio || 1, 2);
     canvas.width = width * scale;
@@ -79,7 +99,7 @@ async function downloadElementAsPng(element: HTMLElement, fileName: string) {
 
     const context = canvas.getContext("2d");
     if (!context) {
-      return;
+      throw new Error("Canvas context is unavailable");
     }
 
     context.scale(scale, scale);
@@ -87,11 +107,23 @@ async function downloadElementAsPng(element: HTMLElement, fileName: string) {
     context.fillRect(0, 0, width, height);
     context.drawImage(image, 0, 0);
 
-    const pngUrl = canvas.toDataURL("image/png");
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((result) => {
+        if (result) {
+          resolve(result);
+        } else {
+          reject(new Error("Canvas export failed"));
+        }
+      }, "image/png");
+    });
+    const pngUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = pngUrl;
     link.download = `${fileName}.png`;
+    document.body.append(link);
     link.click();
+    link.remove();
+    URL.revokeObjectURL(pngUrl);
   } finally {
     URL.revokeObjectURL(svgUrl);
   }

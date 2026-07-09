@@ -82,26 +82,26 @@ export type PortfolioAnalyticsData = {
 };
 
 const statusColors = new Map([
-  ["идея/кп", "#f59e0b"],
-  ["факт оплаты", "#16a34a"],
-  ["уточнение тз", "#2563eb"],
-  ["в разработке", "#7c3aed"],
-  ["на паузе", "#64748b"],
-  ["__none", "#94a3b8"],
+  ["идея/кп", "#fde7b8"],
+  ["факт оплаты", "#ccefdc"],
+  ["уточнение тз", "#d7e8ff"],
+  ["в разработке", "#e6dcff"],
+  ["на паузе", "#dce5ee"],
+  ["__none", "#edf0f4"],
 ]);
 
 const clusterColors = new Map([
-  ["сфера услуг", "#0891b2"],
-  ["торговля", "#16a34a"],
-  ["промышленность", "#7c3aed"],
-  ["недвижимость", "#ea580c"],
-  ["производство", "#4f46e5"],
-  ["инфраструктура", "#0f766e"],
-  ["социальный", "#e11d48"],
-  ["скм", "#6d28d9"],
-  ["транспорт", "#475569"],
-  ["опк", "#1e3a8a"],
-  ["__none", "#94a3b8"],
+  ["сфера услуг", "#cbeff7"],
+  ["торговля", "#d7f3d2"],
+  ["промышленность", "#eadcff"],
+  ["недвижимость", "#ffe0c7"],
+  ["производство", "#dbe4ff"],
+  ["инфраструктура", "#cceee7"],
+  ["социальный", "#ffd7df"],
+  ["скм", "#e4d8ff"],
+  ["транспорт", "#dfe7ef"],
+  ["опк", "#d5e0f7"],
+  ["__none", "#edf0f4"],
 ]);
 
 export async function getPortfolioAnalyticsData(): Promise<PortfolioAnalyticsData> {
@@ -147,14 +147,14 @@ export async function getPortfolioAnalyticsData(): Promise<PortfolioAnalyticsDat
         key: "flagship",
         label: "Флагманские",
         count: flagshipProjects.length,
-        color: "#4f46e5",
+        color: "#dbe4ff",
         href: "/projects?flagship=true",
       },
       {
         key: "not_flagship",
         label: "Не флагманские",
         count: activeProjects.length - flagshipProjects.length,
-        color: "#94a3b8",
+        color: "#edf0f4",
         href: "/projects?flagship=false",
       },
     ].sort(sortSegments),
@@ -545,19 +545,19 @@ function buildQualitySegments(projects: ProjectListItem[]): AnalyticsSegment[] {
     {
       key: "good",
       label: "Заполнено хорошо",
-      color: "#16a34a",
+      color: "#ccefdc",
       count: 0,
     },
     {
       key: "partial",
       label: "Заполнено частично",
-      color: "#f59e0b",
+      color: "#fde7b8",
       count: 0,
     },
     {
       key: "poor",
       label: "Много пустых полей",
-      color: "#e11d48",
+      color: "#ffd7df",
       count: 0,
     },
   ];
@@ -592,7 +592,7 @@ export function getStatusColor(project: ProjectListItem) {
 }
 
 function getMappedColor(map: Map<string, string>, label: string) {
-  return map.get(normalizeName(label)) ?? "#475569";
+  return map.get(normalizeName(label)) ?? "#e2e8f0";
 }
 
 function normalizeName(value: string | null | undefined) {

@@ -19,14 +19,14 @@ export function PortfolioAnalytics({ data }: PortfolioAnalyticsProps) {
   )?.count ?? 0;
 
   return (
-    <section className="flex flex-col gap-5">
+    <section className="flex flex-col gap-7">
       {data.errorMessage ? (
         <section className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
           {data.errorMessage}
         </section>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3">
         <SummaryCard
           label="Активные проекты"
           value={totalActiveProjects}
@@ -44,7 +44,7 @@ export function PortfolioAnalytics({ data }: PortfolioAnalyticsProps) {
         />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-6 2xl:grid-cols-2">
         <SegmentPanel
           description="Активные проекты по текущим статусам, включая проекты без статуса."
           segments={data.statusSegments}
@@ -67,7 +67,7 @@ export function PortfolioAnalytics({ data }: PortfolioAnalyticsProps) {
         directors={data.directorGroups}
       />
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-6 2xl:grid-cols-2">
         <FlagshipAnalytics
           readiness={data.flagshipReadiness}
           split={data.flagshipSplit}
@@ -93,7 +93,7 @@ function SummaryCard({
   value: number;
 }) {
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{label}</p>
       <p className="mt-3 text-3xl font-semibold text-slate-950">{value}</p>
       <p className="mt-2 text-sm leading-6 text-slate-500">{detail}</p>
@@ -116,7 +116,7 @@ function SegmentPanel({
     <DownloadablePanel fileName={slugify(title)}>
       <PanelHeader description={description} title={title} />
       <SegmentedBar segments={segments} total={total} />
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {segments.map((segment) => (
           <SegmentCard key={segment.key} segment={segment} total={total} />
         ))}
@@ -134,14 +134,14 @@ function SegmentedBar({
 }) {
   if (total === 0) {
     return (
-      <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+      <div className="mt-5 rounded-md border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
         Нет активных проектов для расчета.
       </div>
     );
   }
 
   return (
-    <div className="mt-4 flex h-8 overflow-hidden rounded-md bg-slate-100">
+    <div className="mt-5 flex h-10 overflow-hidden rounded-md bg-slate-100">
       {segments
         .filter((segment) => segment.count > 0)
         .map((segment) => {
@@ -189,7 +189,7 @@ function SegmentCard({
     </>
   );
   const className =
-    "flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition hover:border-slate-300 hover:bg-white";
+    "flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition hover:border-slate-300 hover:bg-white";
   const title = `${segment.label} — ${segment.count} проектов`;
 
   return segment.href ? (
@@ -205,12 +205,12 @@ function SegmentCard({
 
 function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"] }) {
   const statusLegend = [
-    { label: "идея/КП", color: "#f59e0b" },
-    { label: "факт оплаты", color: "#16a34a" },
-    { label: "уточнение ТЗ", color: "#2563eb" },
-    { label: "в разработке", color: "#7c3aed" },
-    { label: "на паузе", color: "#64748b" },
-    { label: "Без статуса", color: "#94a3b8" },
+    { label: "идея/КП", color: "#fde7b8" },
+    { label: "факт оплаты", color: "#ccefdc" },
+    { label: "уточнение ТЗ", color: "#d7e8ff" },
+    { label: "в разработке", color: "#e6dcff" },
+    { label: "на паузе", color: "#dce5ee" },
+    { label: "Без статуса", color: "#edf0f4" },
   ];
 
   return (
@@ -219,14 +219,14 @@ function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"]
         description="Компактная матрица по CSM: строка CSM слева, справа горизонтальные клиентские проекты со статусной заливкой."
         title="CSM-матрица"
       />
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-2.5">
         {statusLegend.map((item) => (
           <span
-            className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600"
+            className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600"
             key={item.label}
           >
             <span
-              className="h-3 w-3 rounded-sm"
+              className="h-3.5 w-3.5 rounded-sm border border-slate-200"
               style={{ backgroundColor: item.color }}
             />
             {item.label}
@@ -236,11 +236,11 @@ function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"]
       {projects.length === 0 ? (
         <EmptyState text="Активных проектов для CSM-матрицы пока нет." />
       ) : (
-        <div className="mt-4 overflow-x-auto">
-          <div className="flex min-w-[760px] flex-col gap-3">
+        <div className="mt-5 overflow-x-auto">
+          <div className="flex min-w-[780px] flex-col gap-4">
             {projects.map((group) => (
               <article
-                className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 lg:grid-cols-[190px_1fr]"
+                className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[210px_1fr]"
                 key={group.id}
               >
                 <div>
@@ -252,11 +252,11 @@ function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"]
                   </p>
                 </div>
                 {group.projects.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-slate-200 bg-white px-3 py-2 text-sm text-slate-400">
+                  <div className="rounded-md border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-400">
                     Проектов нет
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2.5">
                     {group.projects.map((project) => (
                       <ProjectPill key={project.id} project={project} />
                     ))}
@@ -283,13 +283,13 @@ function ProjectPill({ project }: { project: ProjectListItem }) {
 
   return (
     <Link
-      className={`max-w-[180px] truncate rounded-md px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-        project.is_flagship ? "border-2" : ""
+      className={`max-w-[190px] truncate rounded-md px-3.5 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+        project.is_flagship ? "border-[3px]" : ""
       }`}
       href={`/projects/${project.id}`}
       style={{
         backgroundColor: color,
-        borderColor: project.is_flagship ? "#111827" : "transparent",
+        borderColor: project.is_flagship ? "#4338ca" : "transparent",
       }}
       title={title}
     >
@@ -313,7 +313,7 @@ function DirectorAnalytics({
         description="Директорская структура с отраслевыми управлениями и разбивкой проектов по кластерам внутри каждого директора."
         title="Директорская структура"
       />
-      <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+      <div className="mt-4 rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600">
         {assignmentsErrorMessage
           ? assignmentsErrorMessage
           : assignmentsCount > 0
@@ -324,10 +324,10 @@ function DirectorAnalytics({
       {directors.length === 0 ? (
         <EmptyState text="Нет активных проектов с директорской структурой." />
       ) : (
-        <div className="mt-4 grid gap-3">
+        <div className="mt-5 grid gap-4">
           {directors.map((director) => (
             <article
-              className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+              className="rounded-lg border border-slate-200 bg-slate-50 p-5"
               key={director.id}
             >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -341,7 +341,7 @@ function DirectorAnalytics({
                   <div className="mt-2 flex flex-wrap gap-2">
                     {director.industries.map((industry) => (
                       <span
-                        className="rounded-md bg-white px-2 py-1 text-xs font-medium text-slate-500"
+                        className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-slate-500"
                         key={industry.id}
                       >
                         {industry.name}: {industry.totalProjects}
@@ -357,10 +357,10 @@ function DirectorAnalytics({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3">
+              <div className="mt-5 grid gap-3">
                 {director.clusters.map((cluster) => (
                   <div
-                    className="rounded-md border border-slate-200 bg-white p-3"
+                    className="rounded-md border border-slate-200 bg-white p-4"
                     key={cluster.id}
                   >
                     <Link
@@ -409,17 +409,21 @@ function FlagshipAnalytics({
         description="Доля флагманских проектов, статусы и готовность паспортного контура."
         title="Флагманская аналитика"
       />
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {split.map((segment) => (
-          <SegmentCard key={segment.key} segment={segment} total={split.reduce((sum, item) => sum + item.count, 0)} />
+          <SegmentCard
+            key={segment.key}
+            segment={segment}
+            total={split.reduce((sum, item) => sum + item.count, 0)}
+          />
         ))}
       </div>
-      <div className="mt-4">
-        <p className="mb-2 text-sm font-semibold text-slate-800">
+      <div className="mt-6">
+        <p className="mb-3 text-sm font-semibold text-slate-800">
           Статусы флагманов
         </p>
         <SegmentedBar segments={statusSegments} total={totalFlagship} />
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {statusSegments.map((segment) => (
             <SegmentCard
               key={segment.key}
@@ -429,10 +433,10 @@ function FlagshipAnalytics({
           ))}
         </div>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {readiness.map((item) => (
           <div
-            className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3"
+            className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4"
             key={item.key}
             title={`${item.label} — ${item.count} проектов`}
           >
@@ -464,12 +468,12 @@ function DataQualityPanel({
         title="Качество заполнения карточек"
       />
       <SegmentedBar segments={segments} total={total} />
-      <div className="mt-4 grid gap-2">
+      <div className="mt-5 grid gap-3">
         {segments.map((segment) => (
           <SegmentCard key={segment.key} segment={segment} total={total} />
         ))}
       </div>
-      <p className="mt-3 text-xs leading-5 text-slate-500">
+      <p className="mt-4 text-xs leading-5 text-slate-500">
         Порог: 7-8 заполненных полей — хорошо, 4-6 — частично, 0-3 — много
         пустых полей. URL-фильтр качества можно добавить отдельным шагом.
       </p>
@@ -487,14 +491,14 @@ function PanelHeader({
   return (
     <div>
       <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
-      <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
     </div>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+    <div className="mt-5 rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
       {text}
     </div>
   );
