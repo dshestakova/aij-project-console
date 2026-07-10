@@ -60,8 +60,8 @@ export default async function AdminUsersPage() {
         />
 
         <section className="flex flex-col gap-5 py-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
               <h2 className="text-2xl font-semibold text-slate-950">
                 Пользователи
               </h2>
@@ -70,7 +70,7 @@ export default async function AdminUsersPage() {
                 ролями уже созданных профилей.
               </p>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 shadow-sm">
+            <div className="self-start rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 shadow-sm sm:self-auto">
               Всего профилей:{" "}
               <span className="font-semibold text-slate-950">
                 {users.length}

@@ -80,12 +80,12 @@ export function UsersRoleList({ users }: UsersRoleListProps) {
 
           return (
             <article
-              className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+              className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
               key={user.id}
             >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">
-                  <p className="truncate text-base font-semibold text-slate-950">
+                  <p className="break-all text-base font-semibold text-slate-950 sm:truncate">
                     {user.email || "Email не указан"}
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
@@ -104,8 +104,8 @@ export function UsersRoleList({ users }: UsersRoleListProps) {
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <label className="block min-w-48">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                  <label className="block w-full min-w-0 sm:min-w-48">
                     <span className="sr-only">Роль пользователя</span>
                     <select
                       className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
@@ -124,7 +124,7 @@ export function UsersRoleList({ users }: UsersRoleListProps) {
                   </label>
 
                   <button
-                    className="h-11 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    className="h-11 w-full rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
                     disabled={isPending || !hasChanges}
                     onClick={() => handleSave(user.id)}
                     type="button"

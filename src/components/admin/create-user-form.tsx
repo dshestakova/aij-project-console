@@ -115,7 +115,7 @@ export function CreateUserForm() {
     email.trim() && role && temporaryPassword && temporaryPassword.length >= 14;
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-slate-950">
@@ -128,8 +128,8 @@ export function CreateUserForm() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_180px]">
-        <label className="block">
+      <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_180px]">
+        <label className="block min-w-0">
           <span className="text-sm font-medium text-slate-700">Email</span>
           <input
             className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
@@ -139,7 +139,7 @@ export function CreateUserForm() {
             value={email}
           />
         </label>
-        <label className="block">
+        <label className="block min-w-0">
           <span className="text-sm font-medium text-slate-700">
             Имя / отображаемое имя
           </span>
@@ -151,7 +151,7 @@ export function CreateUserForm() {
             value={displayName}
           />
         </label>
-        <label className="block">
+        <label className="block min-w-0">
           <span className="text-sm font-medium text-slate-700">Роль</span>
           <select
             className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
@@ -168,8 +168,8 @@ export function CreateUserForm() {
       </div>
 
       <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-          <label className="block flex-1">
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end">
+          <label className="block min-w-0 flex-1">
             <span className="text-sm font-medium text-slate-700">
               Временный пароль
             </span>
@@ -185,14 +185,14 @@ export function CreateUserForm() {
             />
           </label>
           <button
-            className="h-11 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950"
+            className="h-11 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 lg:w-auto"
             onClick={handleGeneratePassword}
             type="button"
           >
             Сгенерировать пароль
           </button>
           <button
-            className="h-11 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="h-11 w-full rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 lg:w-auto"
             disabled={isPending || !canSubmit}
             onClick={handleCreateUser}
             type="button"
@@ -223,12 +223,12 @@ export function CreateUserForm() {
           <p className="font-semibold">Пользователь создан</p>
           <p className="mt-2">Email: {createdUser.email}</p>
           <p>Роль: {getRoleLabel(createdUser.role)}</p>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <code className="rounded-md bg-white px-3 py-2 font-mono text-sm text-slate-950">
+          <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+            <code className="min-w-0 break-all rounded-md bg-white px-3 py-2 font-mono text-sm text-slate-950">
               {createdUser.temporary_password}
             </code>
             <button
-              className="h-10 rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-emerald-800 transition hover:border-emerald-300"
+              className="h-10 w-full rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-emerald-800 transition hover:border-emerald-300 sm:w-auto"
               onClick={handleCopyPassword}
               type="button"
             >

@@ -83,7 +83,7 @@ export default async function DashboardPage() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {summaryCards.map((card) => (
               <article
-                className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+                className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
                 key={card.label}
               >
                 <p className="text-sm font-medium text-slate-500">
@@ -97,7 +97,7 @@ export default async function DashboardPage() {
             ))}
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid min-w-0 gap-4 xl:grid-cols-2">
             <DistributionPanel
               description="Активные проекты по текущим статусам. Пустые значения показаны отдельно."
               emptyLabel="Активных проектов пока нет."
@@ -131,7 +131,7 @@ export default async function DashboardPage() {
               </Link>
             </section>
           ) : (
-            <section className="flex flex-col gap-4">
+            <section className="flex min-w-0 flex-col gap-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-slate-950">
@@ -148,7 +148,7 @@ export default async function DashboardPage() {
                   Все проекты
                 </Link>
               </div>
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid min-w-0 gap-4 xl:grid-cols-2">
                 {activeProjects.slice(0, 4).map((project) => (
                   <ProjectCard key={project.id} project={project} />
                 ))}
@@ -341,7 +341,7 @@ function DistributionPanel({
   const visibleItems = items.filter((item) => item.count > 0);
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
