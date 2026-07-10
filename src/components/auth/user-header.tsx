@@ -14,7 +14,8 @@ type UserHeaderProps = {
     | "/projects"
     | "/analytics"
     | "/ai-analyst"
-    | "/admin/users";
+    | "/admin/users"
+    | "/admin/references";
   role?: UserRole | null;
 };
 
@@ -30,7 +31,11 @@ export function UserHeader({ activePath, email, role }: UserHeaderProps) {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const visibleNavigationItems =
     role === "admin"
-      ? [...navigationItems, { href: "/admin/users", label: "Пользователи" }]
+      ? [
+          ...navigationItems,
+          { href: "/admin/users", label: "Пользователи" },
+          { href: "/admin/references", label: "Справочники" },
+        ]
       : navigationItems;
 
   async function handleSignOut() {
