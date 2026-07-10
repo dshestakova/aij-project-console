@@ -201,7 +201,7 @@ export function ProjectDetailEditor({
 
   return (
     <>
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-500">
@@ -220,7 +220,7 @@ export function ProjectDetailEditor({
             </p>
             {canEdit && !isEditing ? (
               <button
-                className="h-10 rounded-md bg-slate-950 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+                className="h-10 w-full rounded-md bg-slate-950 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 sm:w-auto"
                 onClick={() => {
                   setError(null);
                   setMessage(null);
@@ -325,15 +325,15 @@ function ProjectReadOnlyView({
   project: ProjectDetail;
 }) {
   return (
-    <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
-      <div className="flex flex-col gap-4">
+    <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="flex min-w-0 flex-col gap-4">
         <DetailBlock label="Суть проекта" value={project.essence} />
         <DetailBlock label="Прогресс" value={project.progress} />
         <DetailBlock label="Следующий шаг" value={project.next_step} />
         <DetailBlock label="Комментарий" value={project.comment} />
       </div>
 
-      <aside className="flex flex-col gap-4">
+      <aside className="min-w-0 flex flex-col gap-4">
         <InfoCard
           rows={[
             ["Внешний ID", project.external_id],
@@ -640,7 +640,7 @@ function ProjectChangeHistory({ changes }: { changes: ProjectChangeItem[] }) {
   const groups = groupChanges(changes);
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-lg font-semibold text-slate-950">
         История изменений
       </h3>
@@ -842,7 +842,7 @@ function PassportProjectBlock({
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <button
-          className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+          className="h-10 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 sm:w-auto"
           disabled={!currentPassport || isBusy}
           onClick={onDownload}
           type="button"
@@ -850,7 +850,7 @@ function PassportProjectBlock({
           {isBusy ? "Готовим..." : "Скачать паспорт"}
         </button>
         {variant === "edit" ? (
-          <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950">
+          <label className="inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 sm:w-auto">
             <span>
               {isBusy ? "Загружаем..." : "Загрузить обновленный паспорт"}
             </span>
@@ -885,7 +885,7 @@ function InfoCard({
   title: string;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-lg font-semibold text-slate-950">{title}</h3>
       <dl className="mt-4 flex flex-col gap-3">
         {rows.map(([label, value]) => (
@@ -939,10 +939,10 @@ function TextareaField({
   value: string;
 }) {
   return (
-    <label className="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <label className="block min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <span className="text-sm font-semibold text-slate-700">{label}</span>
       <textarea
-        className="mt-3 min-h-32 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
+        className="mt-3 min-h-32 w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         value={value}
@@ -1051,7 +1051,7 @@ function CollapsibleSection({
 }) {
   return (
     <details
-      className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+      className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
       open={defaultOpen}
     >
       <summary className="cursor-pointer select-none text-lg font-semibold text-slate-950 marker:text-slate-400">
