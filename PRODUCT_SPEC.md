@@ -63,15 +63,15 @@ The product will replace neither the current Telegram bot nor the current Google
   - flagship;
   - CSM;
   - director;
-  - cluster;
+  - industry unit;
   - status;
   - archive state.
 - Project cards as the primary registry view.
 - Mobile-friendly interface.
 
-### Project Clusters
+### Industry Units
 
-Known clusters:
+Known industry units:
 
 - Сфера услуг
 - Торговля
@@ -83,16 +83,18 @@ Known clusters:
 - СКМ
 - Транспорт
 
-Unknown, empty, or unmatched cluster values should be mapped to a neutral "не указан" value with gray styling.
+`ОПК` is merged into `СКМ` for the product and should not appear as an active selectable value.
 
-Cluster color should apply to:
+Unknown, empty, or unmatched industry unit values should be mapped to a neutral "не указан" value with gray styling.
+
+Industry unit color should apply to:
 
 - project ID;
 - project title;
-- cluster badge;
+- industry unit badge;
 - subtle project card accent.
 
-Clusters should be stored as reference data so they can be changed later through admin settings.
+Industry units should be stored as reference data so they can be changed later through admin settings. The deprecated cluster table is retained only for compatibility/source preservation.
 
 ### Project Statuses
 
@@ -143,7 +145,6 @@ Each project should have a detailed view containing:
 - ID проекта
 - Клиент
 - Название проекта
-- Кластер
 - Статус
 - Флагман
 - Флагманский статус
@@ -155,6 +156,7 @@ Each project should have a detailed view containing:
 - Следующий шаг
 - Финансирование
 - Финансирование статус
+- Социальный marker in financing
 - Комментарий
 - Дата последнего обновления
 - История изменений
@@ -268,4 +270,3 @@ Important constraints:
 - No live Google Sheets integration in the first phase.
 - Current external project IDs must be preserved as stable identifiers.
 - Import should handle unknown or empty reference values carefully.
-

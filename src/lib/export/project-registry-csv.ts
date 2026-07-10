@@ -9,6 +9,7 @@ export type ProjectRegistryExportRow = {
   next_step: string | null;
   funding: string | null;
   funding_status: string | null;
+  is_social: boolean | null;
   comment: string | null;
   is_flagship: boolean | null;
   is_archived: boolean | null;
@@ -21,7 +22,6 @@ export type ProjectRegistryExportRow = {
   flagship_uploaded_to_prbr: boolean | null;
   flagship_approved_by_ca: boolean | null;
   source_payload: SourcePayload | null;
-  cluster: { name: string | null } | Array<{ name: string | null }> | null;
   status: { name: string | null } | Array<{ name: string | null }> | null;
   flagship_status:
     | { name: string | null }
@@ -43,8 +43,6 @@ export type ProjectRegistryExportRow = {
 
 const CSV_HEADERS = [
   "ID проекта",
-  "Кластер",
-  "№ в кластере",
   "№ исходный",
   "Клиент",
   "Название проекта",
@@ -58,6 +56,7 @@ const CSV_HEADERS = [
   "Следующий шаг",
   "Финансирование",
   "Финансирование комментарий",
+  "Социальный",
   "Спонсор проекта",
   "Партнер",
   "Статья/мероприятие",
@@ -86,8 +85,6 @@ export function buildProjectRegistryCsv(rows: ProjectRegistryExportRow[]) {
     CSV_HEADERS,
     ...rows.map((project) => [
       cell(project.external_id),
-      cell(getRelationName(project.cluster)),
-      sourceCell(project.source_payload, ["№ в кластере"]),
       sourceCell(project.source_payload, ["№ исходный", "source_id"]),
       cell(project.client),
       cell(project.project_name),
@@ -101,6 +98,7 @@ export function buildProjectRegistryCsv(rows: ProjectRegistryExportRow[]) {
       cell(project.next_step),
       cell(project.funding_status),
       cell(project.funding),
+      booleanCell(project.is_social),
       sourceCell(project.source_payload, ["Спонсор проекта"]),
       sourceCell(project.source_payload, ["Партнер"]),
       sourceCell(project.source_payload, ["Статья/мероприятие"]),

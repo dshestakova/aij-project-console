@@ -41,7 +41,6 @@
 - Add reference tables:
   - project statuses;
   - flagship statuses;
-  - clusters;
   - people;
   - person roles;
   - industry units.
@@ -63,8 +62,8 @@
 - Add dashboard summary.
 - Add card-based project registry.
 - Add search by project ID, client, project name, and essence.
-- Add filters by flagship, CSM, director, cluster, status, and archive state.
-- Apply cluster colors to ID, title, badge, and card accent.
+- Add filters by flagship, CSM, director, industry unit, status, and archive state.
+- Apply industry unit colors to ID, title, badge, and card accent.
 - Keep UI mobile-first.
 
 ## Phase 7. Project Detail Page
@@ -126,4 +125,3 @@
 - Add backup/export procedures.
 - Add performance checks for large registries.
 - Add release checklist.
-

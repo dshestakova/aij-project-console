@@ -12,14 +12,12 @@ import type {
 type ProjectsRegistryProps = {
   projects: ProjectListItem[];
   statuses: ReferenceItem[];
-  clusters: ReferenceItem[];
   flagshipStatuses: ReferenceItem[];
   csms: PersonReference[];
   directors: PersonReference[];
-  industryUnits: Array<Pick<ReferenceItem, "id" | "name">>;
+  industryUnits: ReferenceItem[];
   initialFilters?: {
     statusId?: string;
-    clusterId?: string;
     csmId?: string;
     directorId?: string;
     industryUnitId?: string;
@@ -30,7 +28,6 @@ type ProjectsRegistryProps = {
 };
 
 export function ProjectsRegistry({
-  clusters,
   csms,
   directors,
   flagshipStatuses,
@@ -41,7 +38,6 @@ export function ProjectsRegistry({
 }: ProjectsRegistryProps) {
   const [query, setQuery] = useState("");
   const [statusId, setStatusId] = useState(initialFilters?.statusId ?? "all");
-  const [clusterId, setClusterId] = useState(initialFilters?.clusterId ?? "all");
   const [csmId, setCsmId] = useState(initialFilters?.csmId ?? "all");
   const [directorId, setDirectorId] = useState(
     initialFilters?.directorId ?? "all",
@@ -79,18 +75,6 @@ export function ProjectsRegistry({
         statusId !== "all" &&
         statusId !== "__none" &&
         project.status?.id !== statusId
-      ) {
-        return false;
-      }
-
-      if (clusterId === "__none" && project.cluster) {
-        return false;
-      }
-
-      if (
-        clusterId !== "all" &&
-        clusterId !== "__none" &&
-        project.cluster?.id !== clusterId
       ) {
         return false;
       }
@@ -157,7 +141,6 @@ export function ProjectsRegistry({
         project.project_name,
         project.next_step,
         project.status?.name,
-        project.cluster?.name,
         project.csm?.full_name,
         project.director?.full_name,
         project.industry_unit?.name,
@@ -167,7 +150,6 @@ export function ProjectsRegistry({
     });
   }, [
     archiveMode,
-    clusterId,
     csmId,
     directorId,
     flagship,
@@ -182,7 +164,6 @@ export function ProjectsRegistry({
   const hasActiveFilters =
     query.trim() ||
     statusId !== "all" ||
-    clusterId !== "all" ||
     csmId !== "all" ||
     directorId !== "all" ||
     industryUnitId !== "all" ||
@@ -237,7 +218,7 @@ export function ProjectsRegistry({
     <section className="flex flex-col gap-4">
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-          <div className="grid flex-1 gap-3 lg:grid-cols-4 xl:grid-cols-[minmax(220px,1.4fr)_repeat(7,minmax(140px,1fr))]">
+          <div className="grid flex-1 gap-3 lg:grid-cols-4 xl:grid-cols-[minmax(220px,1.4fr)_repeat(6,minmax(140px,1fr))]">
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Поиск</span>
               <input
@@ -255,13 +236,6 @@ export function ProjectsRegistry({
               options={statuses}
               missingLabel="Без статуса"
               value={statusId}
-            />
-            <FilterSelect
-              label="Кластер"
-              onChange={setClusterId}
-              options={clusters}
-              missingLabel="Без кластера"
-              value={clusterId}
             />
             <FilterSelect
               label="CSM"
@@ -284,7 +258,7 @@ export function ProjectsRegistry({
               value={directorId}
             />
             <FilterSelect
-              label="Отрасль"
+              label="Отраслевое управление"
               onChange={setIndustryUnitId}
               options={industryUnits}
               missingLabel="Без отраслевого управления"

@@ -44,7 +44,7 @@ ID проекта,Кластер,№ в кластере,№ исходный,К
 
 - `client`
 - `project_name`
-- `cluster`
+- `industry_unit`
 - `status`
 - `next_step`
 
@@ -56,7 +56,7 @@ ID проекта,Кластер,№ в кластере,№ исходный,К
 | `№ исходный` | fallback for `projects.external_id` |
 | `Клиент` | `projects.client` |
 | `Название проекта` | `projects.project_name` |
-| `Кластер` | `clusters.name` -> `projects.cluster_id` |
+| `Кластер` | legacy compatibility value: `clusters.name` -> `projects.cluster_id` |
 | `Статус` | `project_statuses.name` -> `projects.status_id` |
 | `Суть проекта` | `projects.essence` |
 | `Прогресс реализации` | `projects.progress` |
@@ -71,7 +71,7 @@ ID проекта,Кластер,№ в кластере,№ исходный,К
 | `Комментарий` | `projects.comment` |
 | `Дата последнего обновления` | `projects.updated_at` if safely parseable, otherwise import timestamp |
 
-The full original CSV row is stored in `projects.source_payload` during real import.
+The full original CSV row is stored in `projects.source_payload` during real import. The product UI uses `Отраслевое управление` / `projects.industry_unit_id` as the single classification field; cluster values are retained only for legacy source compatibility.
 
 ## Empty optional values
 
@@ -147,7 +147,7 @@ npm run import:projects -- --file /private/tmp/aij-project-import/empty-values-t
 - превращает пустые опциональные текстовые значения в `null`;
 - подставляет timestamp запуска импорта в `updated_at`, если дата из CSV пустая или не парсится;
 - сопоставляет справочники по названию:
-  - `cluster` -> `clusters.name`;
+  - `cluster` -> `clusters.name` for legacy compatibility;
   - `status` -> `project_statuses.name`;
   - `flagship_status` -> `flagship_statuses.name`;
   - `csm` -> `people.full_name` with `person_type = csm`;
@@ -155,7 +155,7 @@ npm run import:projects -- --file /private/tmp/aij-project-import/empty-values-t
   - `industry_unit` -> `industry_units.name`;
 - в dry-run показывает проблемы и ничего не пишет;
 - в import mode создает недостающих CSM/director и industry units;
-- не создает недостающие clusters/statuses/flagship statuses, а останавливает импорт;
+- не создает недостающие legacy clusters/statuses/flagship statuses, а останавливает импорт;
 - upsert-ит проекты по `external_id`, поэтому повторный импорт того же `external_id` обновит проект, а не создаст дубль.
 - сохраняет полный исходный CSV row в `projects.source_payload`.
 
@@ -213,7 +213,7 @@ npm run import:projects -- --file /private/tmp/aij-project-import/projects.csv -
 - нет ли дублей `external_id`;
 - сколько строк использует fallback `updated_at`;
 - сколько пустых опциональных текстовых значений найдено;
-- нет ли unmatched clusters/statuses/flagship statuses;
+- нет ли unmatched legacy clusters/statuses/flagship statuses;
 - какие CSM/director/industry units будут созданы при реальном импорте.
 
 Ожидаемый успешный dry-run выглядит примерно так:
@@ -258,6 +258,6 @@ Import mode:
 - Скрипт не импортирует файлы.
 - Скрипт не пишет `project_changes`.
 - Скрипт не запускает next-step business flow.
-- Скрипт не создает новые clusters/statuses/flagship statuses.
+- Скрипт не создает новые legacy clusters/statuses/flagship statuses.
 - CSV должен быть в UTF-8.
 - Перед импортом лучше привести названия справочников к тем, что уже есть в Supabase.

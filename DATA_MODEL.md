@@ -4,7 +4,7 @@
 
 - Use internal UUID primary keys for database relations.
 - Preserve the current external project code as a stable displayed identifier.
-- Use reference tables for statuses, clusters, flagship statuses, and responsible people.
+- Use reference tables for statuses, industry units, flagship statuses, and responsible people.
 - Keep project changes separate from broader user activity logs.
 - Use soft archiving for projects instead of physical deletion.
 - Store files in object storage and keep only metadata in the database.
@@ -40,7 +40,7 @@ Fields:
 - `external_id` text, stable visible project code such as `AIJ-П-001`.
 - `client` text.
 - `project_name` text.
-- `cluster_id` uuid, references `clusters.id`.
+- `cluster_id` uuid, nullable, references `clusters.id`. Deprecated compatibility field; product UI and analytics use `industry_unit_id`.
 - `status_id` uuid, references `project_statuses.id`.
 - `is_flagship` boolean.
 - `flagship_status_id` uuid, nullable, references `flagship_statuses.id`.
@@ -52,6 +52,7 @@ Fields:
 - `next_step` text.
 - `funding` text.
 - `funding_status` text.
+- `is_social` boolean, financing/social marker, default `false`.
 - `comment` text.
 - `source_payload` jsonb, nullable.
 - `is_archived` boolean.
@@ -112,7 +113,7 @@ Fields:
 
 ### `clusters`
 
-Reference table for project clusters.
+Deprecated compatibility reference table for old cluster values. It is kept for safe backward compatibility and importer/source preservation, but current product UI, analytics, filters, and export use `industry_units`.
 
 Initial values:
 
@@ -158,12 +159,31 @@ Reasoning:
 
 ### `industry_units`
 
-Reference table for industry departments.
+Reference table for industry departments. This is the single true project classification field for the product.
+
+Active product values:
+
+- `Сфера услуг`
+- `Торговля`
+- `Промышленность`
+- `Недвижимость`
+- `Производство`
+- `Инфраструктура`
+- `Социальный`
+- `СКМ`
+- `Транспорт`
+
+Notes:
+
+- `ОПК` is treated as the same business unit as `СКМ`; projects are reassigned to `СКМ`, and `ОПК` is not shown as an active option.
+- `Социальный` here is an industry unit. The separate `projects.is_social` field is a financing/social marker.
 
 Fields:
 
 - `id` uuid primary key.
 - `name` text.
+- `color_key` text, nullable.
+- `sort_order` integer, nullable.
 - `is_active` boolean.
 - `created_at` timestamptz.
 - `updated_at` timestamptz.
@@ -291,7 +311,7 @@ Fields:
 - `заполнение паспорта`.
 - `внесен на ПРБР`.
 
-`clusters`:
+`industry_units`:
 
 - `Сфера услуг`.
 - `Торговля`.
@@ -302,6 +322,7 @@ Fields:
 - `Социальный`.
 - `СКМ`.
 - `Транспорт`.
+- `ОПК` is deprecated and merged into `СКМ`.
 
 ## RLS Baseline
 

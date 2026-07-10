@@ -10,7 +10,6 @@ export type ProjectEditInput = {
   client: string;
   project_name: string;
   status_id: string;
-  cluster_id: string;
   csm_id: string;
   director_id: string;
   industry_unit_id: string;
@@ -19,6 +18,7 @@ export type ProjectEditInput = {
   next_step: string;
   funding_status: string;
   funding: string;
+  is_social: boolean;
   comment: string;
   is_archived: boolean;
   is_flagship: boolean;
@@ -59,7 +59,6 @@ type EditableProjectRow = {
   client: string | null;
   project_name: string | null;
   status_id: string | null;
-  cluster_id: string | null;
   csm_id: string | null;
   director_id: string | null;
   industry_unit_id: string | null;
@@ -68,6 +67,7 @@ type EditableProjectRow = {
   next_step: string | null;
   funding_status: string | null;
   funding: string | null;
+  is_social: boolean;
   comment: string | null;
   is_archived: boolean;
   is_flagship: boolean;
@@ -126,7 +126,6 @@ export async function updateProjectAction(
         client,
         project_name,
         status_id,
-        cluster_id,
         csm_id,
         director_id,
         industry_unit_id,
@@ -135,6 +134,7 @@ export async function updateProjectAction(
         next_step,
         funding_status,
         funding,
+        is_social,
         comment,
         is_archived,
         is_flagship,
@@ -203,13 +203,6 @@ export async function updateProjectAction(
     displayReference(normalized.status_id, referenceLabels.statuses),
   );
   addChange(
-    "cluster_id",
-    "cluster_id",
-    normalized.cluster_id,
-    displayReference(row.cluster_id, referenceLabels.clusters),
-    displayReference(normalized.cluster_id, referenceLabels.clusters),
-  );
-  addChange(
     "csm_id",
     "csm_id",
     normalized.csm_id,
@@ -233,6 +226,7 @@ export async function updateProjectAction(
   addChange("essence", "essence", normalized.essence);
   addChange("funding_status", "funding_status", normalized.funding_status);
   addChange("funding", "funding", normalized.funding);
+  addChange("is_social", "is_social", normalized.is_social);
   addChange("comment", "comment", normalized.comment);
   addChange("is_archived", "is_archived", normalized.is_archived);
   addChange("is_flagship", "is_flagship", normalized.is_flagship);
@@ -561,7 +555,6 @@ function normalizeInput(input: ProjectEditInput): EditableProjectRow {
     client: nullableText(input.client),
     project_name: nullableText(input.project_name),
     status_id: nullableId(input.status_id),
-    cluster_id: nullableId(input.cluster_id),
     csm_id: nullableId(input.csm_id),
     director_id: nullableId(input.director_id),
     industry_unit_id: nullableId(input.industry_unit_id),
@@ -570,6 +563,7 @@ function normalizeInput(input: ProjectEditInput): EditableProjectRow {
     next_step: nullableText(input.next_step),
     funding_status: nullableText(input.funding_status),
     funding: nullableText(input.funding),
+    is_social: input.is_social,
     comment: nullableText(input.comment),
     is_archived: input.is_archived,
     is_flagship: isFlagship,
@@ -680,13 +674,11 @@ async function getReferenceLabels() {
   const supabase = await createServerSupabaseClient();
   const [
     statusesResult,
-    clustersResult,
     flagshipStatusesResult,
     peopleResult,
     industryUnitsResult,
   ] = await Promise.all([
     supabase.from("project_statuses").select("id, name"),
-    supabase.from("clusters").select("id, name"),
     supabase.from("flagship_statuses").select("id, name"),
     supabase.from("people").select("id, full_name"),
     supabase.from("industry_units").select("id, name"),
@@ -694,7 +686,6 @@ async function getReferenceLabels() {
 
   return {
     statuses: toLabelMap(statusesResult.data ?? [], "name"),
-    clusters: toLabelMap(clustersResult.data ?? [], "name"),
     flagshipStatuses: toLabelMap(flagshipStatusesResult.data ?? [], "name"),
     people: toLabelMap(peopleResult.data ?? [], "full_name"),
     industryUnits: toLabelMap(industryUnitsResult.data ?? [], "name"),

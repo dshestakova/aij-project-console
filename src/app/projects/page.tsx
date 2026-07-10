@@ -18,7 +18,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   } = await supabase.auth.getUser();
 
   const {
-    clusters,
     csms,
     directors,
     errorMessage,
@@ -65,7 +64,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           ) : null}
 
           <ProjectsRegistry
-            clusters={clusters}
             csms={csms}
             directors={directors}
             flagshipStatuses={flagshipStatuses}
@@ -84,7 +82,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
 function getFiltersKey(filters: ReturnType<typeof getInitialFilters>) {
   return [
     filters.statusId,
-    filters.clusterId,
     filters.csmId,
     filters.directorId,
     filters.industryUnitId,
@@ -99,10 +96,9 @@ function getInitialFilters(
 ) {
   return {
     statusId: getParam(searchParams.status),
-    clusterId: getParam(searchParams.cluster),
     csmId: getParam(searchParams.csm),
     directorId: getParam(searchParams.director),
-    industryUnitId: getParam(searchParams.industry_unit),
+    industryUnitId: getParam(searchParams.industry_unit ?? searchParams.cluster),
     flagshipStatusId: getParam(searchParams.flagship_status),
     flagship: getFlagshipParam(searchParams.flagship),
     archiveMode: getArchiveParam(searchParams.archive ?? searchParams.archived),
