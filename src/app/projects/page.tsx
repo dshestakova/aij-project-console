@@ -1,5 +1,11 @@
 import { UserHeader } from "@/components/auth/user-header";
 import { ProjectsRegistry } from "@/components/projects/projects-registry";
+import { isArchivedProject } from "@/lib/project-registry/filters";
+import type {
+  ArchiveMode,
+  BooleanFilter,
+  QualityFilter,
+} from "@/lib/project-registry/filters";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProjectRegistryData } from "@/lib/supabase/project-registry";
 import { getCurrentProfile } from "@/lib/supabase/profiles";
@@ -28,6 +34,9 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   } = await getProjectRegistryData();
   const currentProfile = await getCurrentProfile();
   const initialFilters = getInitialFilters(resolvedSearchParams);
+  const activeProjectCount = projects.filter(
+    (project) => !isArchivedProject(project),
+  ).length;
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
@@ -50,9 +59,9 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
               </p>
             </div>
             <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 shadow-sm">
-              Всего в базе:{" "}
+              Активных:{" "}
               <span className="font-semibold text-slate-950">
-                {projects.length}
+                {activeProjectCount}
               </span>
             </div>
           </div>
@@ -87,6 +96,8 @@ function getFiltersKey(filters: ReturnType<typeof getInitialFilters>) {
     filters.industryUnitId,
     filters.flagshipStatusId,
     filters.flagship,
+    filters.social,
+    filters.quality,
     filters.archiveMode,
   ].join("|");
 }
@@ -100,7 +111,9 @@ function getInitialFilters(
     directorId: getParam(searchParams.director),
     industryUnitId: getParam(searchParams.industry_unit ?? searchParams.cluster),
     flagshipStatusId: getParam(searchParams.flagship_status),
-    flagship: getFlagshipParam(searchParams.flagship),
+    flagship: getBooleanParam(searchParams.flagship),
+    social: getBooleanParam(searchParams.social),
+    quality: getQualityParam(searchParams.quality),
     archiveMode: getArchiveParam(searchParams.archive ?? searchParams.archived),
   };
 }
@@ -109,21 +122,31 @@ function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "all" : value ?? "all";
 }
 
-function getFlagshipParam(value: string | string[] | undefined) {
+function getBooleanParam(value: string | string[] | undefined): BooleanFilter {
   const param = getParam(value);
 
-  if (param === "true") {
+  if (param === "true" || param === "yes") {
     return "yes";
   }
 
-  if (param === "false") {
+  if (param === "false" || param === "no") {
     return "no";
   }
 
   return "all";
 }
 
-function getArchiveParam(value: string | string[] | undefined) {
+function getQualityParam(value: string | string[] | undefined): QualityFilter {
+  const param = getParam(value);
+
+  if (param === "good" || param === "partial" || param === "poor") {
+    return param;
+  }
+
+  return "all";
+}
+
+function getArchiveParam(value: string | string[] | undefined): ArchiveMode {
   const param = getParam(value);
 
   if (param === "all" || param === "archived" || param === "active") {
