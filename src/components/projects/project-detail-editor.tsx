@@ -325,58 +325,61 @@ function ProjectReadOnlyView({
   project: ProjectDetail;
 }) {
   return (
-    <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="flex min-w-0 flex-col gap-4">
-        <DetailBlock label="Суть проекта" value={project.essence} />
-        <DetailBlock label="Прогресс" value={project.progress} />
-        <DetailBlock label="Следующий шаг" value={project.next_step} />
-        <DetailBlock label="Комментарий" value={project.comment} />
-      </div>
+    <div className="flex min-w-0 flex-col gap-4">
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <DetailBlock label="Суть проекта" value={project.essence} />
+          <DetailBlock label="Прогресс" value={project.progress} />
+          <DetailBlock label="Следующий шаг" value={project.next_step} />
+          <DetailBlock label="Комментарий" value={project.comment} />
+        </div>
 
-      <aside className="min-w-0 flex flex-col gap-4">
-        <InfoCard
-          rows={[
-            ["Внешний ID", project.external_id],
-            ["Клиент", project.client],
-            ["Название проекта", project.project_name],
-            ["Основной статус", project.status?.name ?? "Без статуса"],
-            [
-              "Отраслевое управление",
-              project.industry_unit?.name ?? "Не указано",
-            ],
-            ["Обновлено", formatDateTime(project.updated_at)],
-          ]}
-          title="Паспорт проекта"
-        />
-        <FlagshipCard
-          approvedByCa={project.flagship_approved_by_ca}
-          descriptionUploaded={getProjectDescriptionUploaded(project)}
-          innovationLevel={project.flagship_innovation_level}
-          isFlagship={project.is_flagship}
-          status={project.flagship_status?.name}
-          uploadedToPrbr={project.flagship_uploaded_to_prbr}
-        />
-        <PassportProjectBlock
-          currentPassport={currentPassport}
-          isBusy={isPassportBusy}
-          onDownload={onPassportDownload}
-          passportUploaded={project.flagship_passport_uploaded}
-          passportError={passportError}
-          passportMessage={passportMessage}
-          variant="readonly"
-        />
-        <InfoCard
-          rows={[
-            ["Финансирование", project.funding],
-            ["Статус финансирования", project.funding_status],
-            ["Социальный", project.is_social ? "да" : "нет"],
-            ["CSM", project.csm?.full_name],
-            ["Директор", project.director?.full_name],
-          ]}
-          title="Ответственные и финансы"
-        />
-      </aside>
-    </section>
+        <aside className="min-w-0">
+          <InfoCard
+            rows={[
+              ["Внешний ID", project.external_id],
+              ["Клиент", project.client],
+              ["Название проекта", project.project_name],
+              ["Основной статус", project.status?.name ?? "Без статуса"],
+              [
+                "Отраслевое управление",
+                project.industry_unit?.name ?? "Не указано",
+              ],
+              ["Обновлено", formatDateTime(project.updated_at)],
+            ]}
+            title="Кратко"
+          />
+        </aside>
+      </section>
+
+      <FlagshipCard
+        approvedByCa={project.flagship_approved_by_ca}
+        descriptionUploaded={getProjectDescriptionUploaded(project)}
+        innovationLevel={project.flagship_innovation_level}
+        isFlagship={project.is_flagship}
+        status={project.flagship_status?.name}
+        uploadedToPrbr={project.flagship_uploaded_to_prbr}
+      />
+      <PassportProjectBlock
+        currentPassport={currentPassport}
+        isBusy={isPassportBusy}
+        onDownload={onPassportDownload}
+        passportUploaded={project.flagship_passport_uploaded}
+        passportError={passportError}
+        passportMessage={passportMessage}
+        variant="readonly"
+      />
+      <InfoCard
+        rows={[
+          ["Финансирование", project.funding],
+          ["Статус финансирования", project.funding_status],
+          ["Социальный", project.is_social ? "да" : "нет"],
+          ["CSM", project.csm?.full_name],
+          ["Директор", project.director?.full_name],
+        ]}
+        title="Ответственные и финансы"
+      />
+    </div>
   );
 }
 
@@ -695,7 +698,7 @@ function DetailBlock({
   value: string | null;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-sm font-semibold uppercase text-slate-400">{label}</h3>
       <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
         {getDisplayValue(value)}
