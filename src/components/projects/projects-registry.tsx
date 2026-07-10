@@ -3,6 +3,12 @@
 import { useMemo, useState } from "react";
 
 import { ProjectCard } from "@/components/projects/project-card";
+import {
+  filterProjectRegistryProjects,
+  type ArchiveMode,
+  type BooleanFilter,
+  type QualityFilter,
+} from "@/lib/project-registry/filters";
 import type {
   PersonReference,
   ProjectListItem,
@@ -22,8 +28,10 @@ type ProjectsRegistryProps = {
     directorId?: string;
     industryUnitId?: string;
     flagshipStatusId?: string;
-    flagship?: string;
-    archiveMode?: string;
+    flagship?: BooleanFilter;
+    archiveMode?: ArchiveMode;
+    social?: BooleanFilter;
+    quality?: QualityFilter;
   };
 };
 
@@ -52,101 +60,23 @@ export function ProjectsRegistry({
   const [archiveMode, setArchiveMode] = useState(
     initialFilters?.archiveMode ?? "active",
   );
+  const [social, setSocial] = useState(initialFilters?.social ?? "all");
+  const [quality, setQuality] = useState(initialFilters?.quality ?? "all");
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const filteredProjects = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    return projects.filter((project) => {
-      if (archiveMode === "active" && project.is_archived) {
-        return false;
-      }
-
-      if (archiveMode === "archived" && !project.is_archived) {
-        return false;
-      }
-
-      if (statusId === "__none" && project.status) {
-        return false;
-      }
-
-      if (
-        statusId !== "all" &&
-        statusId !== "__none" &&
-        project.status?.id !== statusId
-      ) {
-        return false;
-      }
-
-      if (csmId === "__none" && project.csm) {
-        return false;
-      }
-
-      if (csmId !== "all" && csmId !== "__none" && project.csm?.id !== csmId) {
-        return false;
-      }
-
-      if (directorId === "__none" && project.director) {
-        return false;
-      }
-
-      if (
-        directorId !== "all" &&
-        directorId !== "__none" &&
-        project.director?.id !== directorId
-      ) {
-        return false;
-      }
-
-      if (industryUnitId === "__none" && project.industry_unit) {
-        return false;
-      }
-
-      if (
-        industryUnitId !== "all" &&
-        industryUnitId !== "__none" &&
-        project.industry_unit?.id !== industryUnitId
-      ) {
-        return false;
-      }
-
-      if (flagshipStatusId === "__none" && project.flagship_status) {
-        return false;
-      }
-
-      if (
-        flagshipStatusId !== "all" &&
-        flagshipStatusId !== "__none" &&
-        project.flagship_status?.id !== flagshipStatusId
-      ) {
-        return false;
-      }
-
-      if (flagship === "yes" && !project.is_flagship) {
-        return false;
-      }
-
-      if (flagship === "no" && project.is_flagship) {
-        return false;
-      }
-
-      if (!normalizedQuery) {
-        return true;
-      }
-
-      return [
-        project.external_id,
-        project.client,
-        project.project_name,
-        project.next_step,
-        project.status?.name,
-        project.csm?.full_name,
-        project.director?.full_name,
-        project.industry_unit?.name,
-      ]
-        .filter(Boolean)
-        .some((value) => value?.toLowerCase().includes(normalizedQuery));
+    return filterProjectRegistryProjects(projects, {
+      archiveMode,
+      csmId,
+      directorId,
+      flagship,
+      flagshipStatusId,
+      industryUnitId,
+      quality,
+      query,
+      social,
+      statusId,
     });
   }, [
     archiveMode,
@@ -156,7 +86,9 @@ export function ProjectsRegistry({
     flagshipStatusId,
     industryUnitId,
     projects,
+    quality,
     query,
+    social,
     statusId,
   ]);
 
@@ -169,6 +101,8 @@ export function ProjectsRegistry({
     industryUnitId !== "all" ||
     flagshipStatusId !== "all" ||
     flagship !== "all" ||
+    social !== "all" ||
+    quality !== "all" ||
     archiveMode !== "active";
 
   async function handleExport() {
@@ -218,7 +152,7 @@ export function ProjectsRegistry({
     <section className="flex flex-col gap-4">
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-          <div className="grid flex-1 gap-3 lg:grid-cols-4 xl:grid-cols-[minmax(220px,1.4fr)_repeat(6,minmax(140px,1fr))]">
+          <div className="grid flex-1 gap-3 lg:grid-cols-4 xl:grid-cols-[minmax(220px,1.4fr)_repeat(8,minmax(140px,1fr))]">
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Поиск</span>
               <input
@@ -277,7 +211,9 @@ export function ProjectsRegistry({
               </span>
               <select
                 className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
-                onChange={(event) => setFlagship(event.target.value)}
+                onChange={(event) =>
+                  setFlagship(event.target.value as BooleanFilter)
+                }
                 value={flagship}
               >
                 <option value="all">Все</option>
@@ -286,13 +222,48 @@ export function ProjectsRegistry({
               </select>
             </label>
             <label className="block">
+              <span className="text-sm font-medium text-slate-700">
+                Социальный
+              </span>
+              <select
+                className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
+                onChange={(event) =>
+                  setSocial(event.target.value as BooleanFilter)
+                }
+                value={social}
+              >
+                <option value="all">Все</option>
+                <option value="yes">Да</option>
+                <option value="no">Нет</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">
+                Качество
+              </span>
+              <select
+                className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
+                onChange={(event) =>
+                  setQuality(event.target.value as QualityFilter)
+                }
+                value={quality}
+              >
+                <option value="all">Все</option>
+                <option value="good">Хорошо</option>
+                <option value="partial">Частично</option>
+                <option value="poor">Много пустых</option>
+              </select>
+            </label>
+            <label className="block">
               <span className="text-sm font-medium text-slate-700">Архив</span>
               <select
                 className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
-                onChange={(event) => setArchiveMode(event.target.value)}
+                onChange={(event) =>
+                  setArchiveMode(event.target.value as ArchiveMode)
+                }
                 value={archiveMode}
               >
-                <option value="active">Скрыт</option>
+                <option value="active">Только активные</option>
                 <option value="all">Показать все</option>
                 <option value="archived">Только архив</option>
               </select>
@@ -311,6 +282,14 @@ export function ProjectsRegistry({
 
         {exportError ? (
           <p className="mt-3 text-sm text-rose-700">{exportError}</p>
+        ) : null}
+
+        {archiveMode !== "active" ? (
+          <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {archiveMode === "archived"
+              ? "Показаны только архивные проекты."
+              : "Показаны активные и архивные проекты."}
+          </p>
         ) : null}
       </div>
 
