@@ -10,6 +10,7 @@ import {
   updateProjectAction,
 } from "@/app/projects/[id]/actions";
 import { Badge } from "@/components/projects/badge";
+import { getIndustryUnitColorKey } from "@/lib/project-registry/colors";
 import { formatDateTime, getDisplayValue } from "@/lib/project-registry/format";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type {
@@ -52,7 +53,6 @@ const fieldLabels: Record<string, string> = {
   client: "Клиент",
   project_name: "Название проекта",
   status_id: "Статус",
-  cluster_id: "Кластер",
   csm_id: "CSM",
   director_id: "Директор",
   industry_unit_id: "Отраслевое управление",
@@ -61,6 +61,7 @@ const fieldLabels: Record<string, string> = {
   next_step: "Следующий шаг",
   funding_status: "Статус финансирования",
   funding: "Комментарий по финансированию",
+  is_social: "Социальный",
   comment: "Комментарий",
   is_archived: "Архив",
   is_flagship: "Флагман",
@@ -235,12 +236,17 @@ export function ProjectDetailEditor({
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          {project.cluster ? (
-            <Badge colorKey={project.cluster.color_key}>
-              {project.cluster.name}
+          {project.industry_unit ? (
+            <Badge
+              colorKey={getIndustryUnitColorKey(
+                project.industry_unit.name,
+                project.industry_unit.color_key,
+              )}
+            >
+              {project.industry_unit.name}
             </Badge>
           ) : (
-            <Badge>Без кластера</Badge>
+            <Badge>Без отраслевого управления</Badge>
           )}
           {project.status ? (
             <Badge colorKey={project.status.color_key}>
@@ -255,6 +261,7 @@ export function ProjectDetailEditor({
               {project.flagship_status.name}
             </Badge>
           ) : null}
+          {project.is_social ? <Badge colorKey="rose">Социальный</Badge> : null}
           {project.is_archived ? <Badge colorKey="gray">Архив</Badge> : null}
         </div>
       </section>
@@ -333,7 +340,10 @@ function ProjectReadOnlyView({
             ["Клиент", project.client],
             ["Название проекта", project.project_name],
             ["Основной статус", project.status?.name ?? "Без статуса"],
-            ["Кластер", project.cluster?.name ?? "Без кластера"],
+            [
+              "Отраслевое управление",
+              project.industry_unit?.name ?? "Не указано",
+            ],
             ["Обновлено", formatDateTime(project.updated_at)],
           ]}
           title="Паспорт проекта"
@@ -359,9 +369,9 @@ function ProjectReadOnlyView({
           rows={[
             ["Финансирование", project.funding],
             ["Статус финансирования", project.funding_status],
+            ["Социальный", project.is_social ? "да" : "нет"],
             ["CSM", project.csm?.full_name],
             ["Директор", project.director?.full_name],
-            ["Отраслевое управление", project.industry_unit?.name],
           ]}
           title="Ответственные и финансы"
         />
@@ -430,13 +440,6 @@ function ProjectEditForm({
             value={form.status_id}
           />
           <ReferenceSelect
-            emptyLabel="Без кластера"
-            label="Кластер"
-            onChange={(value) => onChange("cluster_id", value)}
-            options={references.clusters}
-            value={form.cluster_id}
-          />
-          <ReferenceSelect
             emptyLabel="Не указано"
             label="Отраслевое управление"
             onChange={(value) => onChange("industry_unit_id", value)}
@@ -501,6 +504,11 @@ function ProjectEditForm({
           label="Комментарий"
           onChange={(value) => onChange("funding", value)}
           value={form.funding}
+        />
+        <CheckboxField
+          checked={form.is_social}
+          label="Социальный"
+          onChange={(value) => onChange("is_social", value)}
         />
         </div>
       </CollapsibleSection>
@@ -1082,7 +1090,6 @@ function getInitialForm(project: ProjectDetail): ProjectEditInput {
     client: project.client ?? "",
     project_name: project.project_name ?? "",
     status_id: project.status_id ?? "",
-    cluster_id: project.cluster_id ?? "",
     csm_id: project.csm_id ?? "",
     director_id: project.director_id ?? "",
     industry_unit_id: project.industry_unit_id ?? "",
@@ -1091,6 +1098,7 @@ function getInitialForm(project: ProjectDetail): ProjectEditInput {
     next_step: project.next_step ?? "",
     funding_status: project.funding_status ?? "",
     funding: project.funding ?? "",
+    is_social: project.is_social,
     comment: project.comment ?? "",
     is_archived: project.is_archived,
     is_flagship: project.is_flagship,

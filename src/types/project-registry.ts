@@ -43,12 +43,12 @@ export type ProjectListItem = {
   external_id: string;
   client: string | null;
   project_name: string | null;
+  is_social: boolean;
   is_flagship: boolean;
   is_archived: boolean;
   flagship_passport_uploaded: boolean;
   next_step: string | null;
   updated_at: string;
-  cluster_id: string | null;
   status_id: string | null;
   csm_id: string | null;
   director_id: string | null;
@@ -59,12 +59,11 @@ export type ProjectListItem = {
   flagship_innovation_level: "высокий" | "средний" | "низкий" | null;
   flagship_uploaded_to_prbr: boolean;
   flagship_approved_by_ca: boolean;
-  cluster: ReferenceItem | null;
   status: ReferenceItem | null;
   flagship_status: ReferenceItem | null;
   csm: PersonReference | null;
   director: PersonReference | null;
-  industry_unit: Pick<ReferenceItem, "id" | "name"> | null;
+  industry_unit: ReferenceItem | null;
 };
 
 export type ProjectDetail = ProjectListItem & {
@@ -79,11 +78,10 @@ export type ProjectDetail = ProjectListItem & {
 
 export type ProjectEditReferences = {
   statuses: ReferenceItem[];
-  clusters: ReferenceItem[];
   flagshipStatuses: ReferenceItem[];
   csms: PersonReference[];
   directors: PersonReference[];
-  industryUnits: Array<Pick<ReferenceItem, "id" | "name">>;
+  industryUnits: ReferenceItem[];
 };
 
 export type ProjectChangeItem = {
@@ -116,10 +114,9 @@ export type ProjectFileItem = {
 export type ProjectRegistryData = {
   projects: ProjectListItem[];
   statuses: ReferenceItem[];
-  clusters: ReferenceItem[];
   flagshipStatuses: ReferenceItem[];
   csms: PersonReference[];
   directors: PersonReference[];
-  industryUnits: Array<Pick<ReferenceItem, "id" | "name">>;
+  industryUnits: ReferenceItem[];
   errorMessage: string | null;
 };

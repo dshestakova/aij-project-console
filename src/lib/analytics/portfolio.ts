@@ -26,12 +26,7 @@ export type DirectorAnalyticsGroup = {
   name: string;
   totalProjects: number;
   averageProjectsPerCsm: number;
-  industries: Array<{
-    id: string;
-    name: string;
-    totalProjects: number;
-  }>;
-  clusters: Array<{
+  industryUnits: Array<{
     id: string;
     name: string;
     totalProjects: number;
@@ -64,7 +59,7 @@ export type PortfolioAnalyticsData = {
   activeProjects: ProjectListItem[];
   totalProjects: number;
   statusSegments: AnalyticsSegment[];
-  clusterSegments: AnalyticsSegment[];
+  industryUnitSegments: AnalyticsSegment[];
   csmMatrix: CsmMatrixGroup[];
   directorGroups: DirectorAnalyticsGroup[];
   assignments: DirectorCsmAssignment[];
@@ -90,7 +85,7 @@ const statusColors = new Map([
   ["__none", "#edf0f4"],
 ]);
 
-const clusterColors = new Map([
+const industryUnitColors = new Map([
   ["сфера услуг", "#cbeff7"],
   ["торговля", "#d7f3d2"],
   ["промышленность", "#eadcff"],
@@ -100,7 +95,6 @@ const clusterColors = new Map([
   ["социальный", "#ffd7df"],
   ["скм", "#e4d8ff"],
   ["транспорт", "#dfe7ef"],
-  ["опк", "#d5e0f7"],
   ["__none", "#edf0f4"],
 ]);
 
@@ -125,15 +119,15 @@ export async function getPortfolioAnalyticsData(): Promise<PortfolioAnalyticsDat
       getColor: (label, isMissing) =>
         getMappedColor(statusColors, isMissing ? "__none" : label),
     }),
-    clusterSegments: buildReferenceSegments({
+    industryUnitSegments: buildReferenceSegments({
       projects: activeProjects,
-      references: registryData.clusters,
-      missingLabel: "Без кластера",
-      missingHref: "/projects?cluster=__none",
-      getReference: (project) => project.cluster,
-      getHref: (id) => `/projects?cluster=${id}`,
+      references: registryData.industryUnits,
+      missingLabel: "Без отраслевого управления",
+      missingHref: "/projects?industry_unit=__none",
+      getReference: (project) => project.industry_unit,
+      getHref: (id) => `/projects?industry_unit=${id}`,
       getColor: (label, isMissing) =>
-        getMappedColor(clusterColors, isMissing ? "__none" : label),
+        getMappedColor(industryUnitColors, isMissing ? "__none" : label),
     }),
     csmMatrix: buildCsmMatrix(activeProjects, registryData.csms),
     directorGroups: buildDirectorGroups(
@@ -333,29 +327,21 @@ function buildDirectorGroups(
         name: key.directorName,
         totalProjects: 0,
         averageProjectsPerCsm: 0,
-        industries: [],
-        clusters: [],
+        industryUnits: [],
         href: `/projects?director=${key.directorId}`,
       } satisfies DirectorAnalyticsGroup);
-    const industry =
-      director.industries.find((item) => item.id === key.industryId) ??
-      addIndustryGroup(director, key.industryId, key.industryName);
-    const matchingProjectsByCluster = groupProjectsByCluster(matchingProjects);
+    const industryUnit =
+      director.industryUnits.find((item) => item.id === key.industryId) ??
+      addIndustryUnitGroup(director, key.industryId, key.industryName);
 
-    industry.totalProjects += matchingProjects.length;
+    industryUnit.totalProjects += matchingProjects.length;
     director.totalProjects += matchingProjects.length;
 
-    for (const clusterGroup of matchingProjectsByCluster) {
-      const cluster =
-        director.clusters.find((item) => item.id === clusterGroup.id) ??
-        addClusterGroup(director, clusterGroup, key.directorId);
-      const csm =
-        cluster.csms.find((item) => item.id === key.csmId) ??
-        addCsmGroup(cluster, key, director.id);
+    const csm =
+      industryUnit.csms.find((item) => item.id === key.csmId) ??
+      addCsmGroup(industryUnit, key, director.id);
 
-      csm.projectCount += clusterGroup.projects.length;
-      cluster.totalProjects += clusterGroup.projects.length;
-    }
+    csm.projectCount += matchingProjects.length;
 
     directors.set(key.directorId, director);
   }
@@ -363,8 +349,8 @@ function buildDirectorGroups(
   return Array.from(directors.values())
     .map((director) => {
       const uniqueCsmCount = new Set(
-        director.clusters.flatMap((cluster) =>
-          cluster.csms.map((csm) => csm.id),
+        director.industryUnits.flatMap((industryUnit) =>
+          industryUnit.csms.map((csm) => csm.id),
         ),
       ).size;
 
@@ -373,12 +359,10 @@ function buildDirectorGroups(
         averageProjectsPerCsm: uniqueCsmCount
           ? director.totalProjects / uniqueCsmCount
           : 0,
-        industries: director.industries
-          .sort((first, second) => second.totalProjects - first.totalProjects),
-        clusters: director.clusters
-          .map((cluster) => ({
-            ...cluster,
-            csms: cluster.csms.sort(
+        industryUnits: director.industryUnits
+          .map((industryUnit) => ({
+            ...industryUnit,
+            csms: industryUnit.csms.sort(
               (first, second) => second.projectCount - first.projectCount,
             ),
           }))
@@ -386,24 +370,6 @@ function buildDirectorGroups(
       };
     })
     .sort((first, second) => second.totalProjects - first.totalProjects);
-}
-
-function groupProjectsByCluster(projects: ProjectListItem[]) {
-  const clusters = new Map<
-    string,
-    { id: string; name: string; projects: ProjectListItem[] }
-  >();
-
-  for (const project of projects) {
-    const id = project.cluster?.id ?? "__none";
-    const name = project.cluster?.name ?? "Без кластера";
-    const cluster = clusters.get(id) ?? { id, name, projects: [] };
-
-    cluster.projects.push(project);
-    clusters.set(id, cluster);
-  }
-
-  return Array.from(clusters.values());
 }
 
 function dedupeDirectorKeys(
@@ -454,38 +420,24 @@ function matchesIdOrName(
     : projectId === assignmentId;
 }
 
-function addIndustryGroup(
+function addIndustryUnitGroup(
   director: DirectorAnalyticsGroup,
   id: string,
   name: string,
 ) {
-  const industry = {
+  const industryUnit = {
     id,
     name,
     totalProjects: 0,
-  };
-  director.industries.push(industry);
-  return industry;
-}
-
-function addClusterGroup(
-  director: DirectorAnalyticsGroup,
-  cluster: { id: string; name: string },
-  directorId: string,
-) {
-  const clusterGroup = {
-    id: cluster.id,
-    name: cluster.name,
-    totalProjects: 0,
-    href: `/projects?director=${directorId}&cluster=${cluster.id}`,
+    href: `/projects?director=${director.id}&industry_unit=${id}`,
     csms: [],
   };
-  director.clusters.push(clusterGroup);
-  return clusterGroup;
+  director.industryUnits.push(industryUnit);
+  return industryUnit;
 }
 
 function addCsmGroup(
-  cluster: DirectorAnalyticsGroup["clusters"][number],
+  industryUnit: DirectorAnalyticsGroup["industryUnits"][number],
   key: { csmId: string; csmName: string },
   directorId: string,
 ) {
@@ -495,7 +447,7 @@ function addCsmGroup(
     projectCount: 0,
     href: `/projects?director=${directorId}&csm=${key.csmId}`,
   };
-  cluster.csms.push(csm);
+  industryUnit.csms.push(csm);
   return csm;
 }
 
@@ -568,7 +520,7 @@ function buildQualitySegments(projects: ProjectListItem[]): AnalyticsSegment[] {
       project.project_name,
       project.essence,
       project.status_id,
-      project.cluster_id,
+      project.industry_unit_id,
       project.csm_id,
       project.director_id,
       project.next_step,

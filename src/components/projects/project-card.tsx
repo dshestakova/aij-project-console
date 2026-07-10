@@ -1,7 +1,10 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/projects/badge";
-import { getAccentTone } from "@/lib/project-registry/colors";
+import {
+  getAccentTone,
+  getIndustryUnitColorKey,
+} from "@/lib/project-registry/colors";
 import { formatDateTime, getDisplayValue, getPreview } from "@/lib/project-registry/format";
 import type { ProjectListItem } from "@/types/project-registry";
 
@@ -13,7 +16,10 @@ export function ProjectCard({ project }: ProjectCardProps) {
   return (
     <Link
       className={`group block rounded-lg border border-l-4 border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-300 ${getAccentTone(
-        project.cluster?.color_key,
+        getIndustryUnitColorKey(
+          project.industry_unit?.name,
+          project.industry_unit?.color_key,
+        ),
       )}`}
       href={`/projects/${project.id}`}
     >
@@ -35,10 +41,17 @@ export function ProjectCard({ project }: ProjectCardProps) {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {project.cluster ? (
-          <Badge colorKey={project.cluster.color_key}>{project.cluster.name}</Badge>
+        {project.industry_unit ? (
+          <Badge
+            colorKey={getIndustryUnitColorKey(
+              project.industry_unit.name,
+              project.industry_unit.color_key,
+            )}
+          >
+            {project.industry_unit.name}
+          </Badge>
         ) : (
-          <Badge>Кластер не указан</Badge>
+          <Badge>Отраслевое управление не указано</Badge>
         )}
         {project.status ? (
           <Badge colorKey={project.status.color_key}>{project.status.name}</Badge>
@@ -54,6 +67,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
         {project.flagship_passport_uploaded ? (
           <Badge colorKey="green">Паспорт загружен</Badge>
         ) : null}
+        {project.is_social ? <Badge colorKey="rose">Социальный</Badge> : null}
         {project.is_archived ? <Badge colorKey="gray">Архив</Badge> : null}
       </div>
 

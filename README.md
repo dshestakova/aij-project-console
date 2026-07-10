@@ -126,9 +126,9 @@ Database schema changes live in `supabase/migrations`.
 The initial schema migration creates:
 
 - app profiles and roles;
-- project status, flagship status, cluster, people, and industry unit reference tables;
+- project status, flagship status, people, and industry unit reference tables, with deprecated cluster compatibility data retained;
 - project registry, project change history, project file metadata, audit log, and future AI query log tables;
-- initial reference values for statuses, flagship statuses, and clusters;
+- initial reference values for statuses, flagship statuses, and industry units;
 - RLS policies that block anonymous table access and keep writes role-based.
 
 Recommended MVP way to apply the first migration:
@@ -159,7 +159,7 @@ Replace `your-email@example.com` with the email you used to log in. Do not paste
 
 The first project registry UI is read-only:
 
-- `/dashboard` loads aggregate counters and status/cluster distributions from Supabase.
+- `/dashboard` loads aggregate counters and status/industry-unit distributions from Supabase.
 - `/projects` loads project cards and supports local search/filtering over the authenticated read-only result set.
 - `/projects/[id]` shows a read-only project detail page.
 

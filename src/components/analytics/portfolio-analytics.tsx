@@ -52,9 +52,9 @@ export function PortfolioAnalytics({ data }: PortfolioAnalyticsProps) {
           total={totalActiveProjects}
         />
         <SegmentPanel
-          description="Активные проекты по кластерам. Реальные кластеры окрашены разными цветами."
-          segments={data.clusterSegments}
-          title="Проекты по кластерам"
+          description="Активные проекты по отраслевым управлениям. Управления окрашены разными цветами."
+          segments={data.industryUnitSegments}
+          title="Проекты по отраслевым управлениям"
           total={totalActiveProjects}
         />
       </div>
@@ -315,7 +315,7 @@ function DirectorAnalytics({
   return (
     <DownloadablePanel fileName="director-analytics">
       <PanelHeader
-        description="Директорская структура с отраслевыми управлениями и разбивкой проектов по кластерам внутри каждого директора."
+        description="Директорская структура с отраслевыми управлениями, CSM и количеством проектов."
         title="Директорская структура"
       />
       <div className="mt-4 rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -344,13 +344,14 @@ function DirectorAnalytics({
                     {director.name}
                   </Link>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {director.industries.map((industry) => (
-                      <span
-                        className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-slate-500"
-                        key={industry.id}
+                    {director.industryUnits.map((industryUnit) => (
+                      <Link
+                        className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:text-slate-800"
+                        href={industryUnit.href}
+                        key={industryUnit.id}
                       >
-                        {industry.name}: {industry.totalProjects}
-                      </span>
+                        {industryUnit.name}: {industryUnit.totalProjects}
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -363,19 +364,19 @@ function DirectorAnalytics({
               </div>
 
               <div className="mt-5 grid gap-3">
-                {director.clusters.map((cluster) => (
+                {director.industryUnits.map((industryUnit) => (
                   <div
                     className="rounded-md border border-slate-200 bg-white p-4"
-                    key={cluster.id}
+                    key={industryUnit.id}
                   >
                     <Link
                       className="text-sm font-semibold text-slate-800 transition hover:text-slate-600"
-                      href={cluster.href}
+                      href={industryUnit.href}
                     >
-                      {cluster.name} · {cluster.totalProjects}
+                      {industryUnit.name} · {industryUnit.totalProjects}
                     </Link>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {cluster.csms.map((csm) => (
+                      {industryUnit.csms.map((csm) => (
                         <Link
                           className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
                           href={csm.href}
@@ -469,7 +470,7 @@ function DataQualityPanel({
   return (
     <DownloadablePanel fileName="data-quality">
       <PanelHeader
-        description="Оценка по 8 ключевым полям: клиент, название, суть, статус, кластер, CSM, директор, следующий шаг."
+        description="Оценка по 8 ключевым полям: клиент, название, суть, статус, отраслевое управление, CSM, директор, следующий шаг."
         title="Качество заполнения карточек"
       />
       <SegmentedBar segments={segments} total={total} />

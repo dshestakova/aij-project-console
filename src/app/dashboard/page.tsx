@@ -6,7 +6,7 @@ import { ProjectCard } from "@/components/projects/project-card";
 import {
   getBadgeTone,
   getChartTone,
-  getClusterColorKey,
+  getIndustryUnitColorKey,
 } from "@/lib/project-registry/colors";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProjectRegistryData } from "@/lib/supabase/project-registry";
@@ -25,7 +25,7 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { clusters, errorMessage, projects, statuses } =
+  const { errorMessage, industryUnits, projects, statuses } =
     await getProjectRegistryData();
   const currentProfile = await getCurrentProfile();
 
@@ -57,7 +57,10 @@ export default async function DashboardPage() {
   ];
 
   const statusDistribution = getStatusDistribution(statuses, activeProjects);
-  const clusterDistribution = getClusterDistribution(clusters, activeProjects);
+  const industryUnitDistribution = getIndustryUnitDistribution(
+    industryUnits,
+    activeProjects,
+  );
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
@@ -101,11 +104,11 @@ export default async function DashboardPage() {
               title="Распределение по статусам"
             />
             <DistributionPanel
-              description="Активные проекты по кластерам. Архив учитывается отдельно в верхних карточках."
+              description="Активные проекты по отраслевым управлениям. Архив учитывается отдельно в верхних карточках."
               emptyLabel="Активных проектов пока нет."
-              items={clusterDistribution}
+              items={industryUnitDistribution}
               totalLabel="Активных"
-              title="Распределение по кластерам"
+              title="Распределение по отраслевым управлениям"
             />
           </div>
 
@@ -226,58 +229,66 @@ function getStatusDistribution(
   ]);
 }
 
-function getClusterDistribution(
+function getIndustryUnitDistribution(
   references: ReferenceItem[],
   projects: ProjectListItem[],
 ): DistributionItem[] {
   const items = references
     .map((reference) => ({
       ...reference,
-      color_key: getClusterColorKey(reference.name, reference.color_key),
-      count: projects.filter((project) => project.cluster?.id === reference.id)
-        .length,
-      href: `/projects?cluster=${reference.id}`,
+      color_key: getIndustryUnitColorKey(reference.name, reference.color_key),
+      count: projects.filter(
+        (project) => project.industry_unit?.id === reference.id,
+      ).length,
+      href: `/projects?industry_unit=${reference.id}`,
     }))
     .filter((item) => item.count > 0);
-  const knownClusterIds = new Set(references.map((reference) => reference.id));
-  const unknownClusterItems = projects
+  const knownIndustryUnitIds = new Set(
+    references.map((reference) => reference.id),
+  );
+  const unknownIndustryUnitItems = projects
     .filter(
       (project) =>
-        project.cluster && !knownClusterIds.has(project.cluster.id),
+        project.industry_unit &&
+        !knownIndustryUnitIds.has(project.industry_unit.id),
     )
     .reduce<DistributionItem[]>((items, project) => {
-      const cluster = project.cluster;
+      const industryUnit = project.industry_unit;
 
-      if (!cluster) {
+      if (!industryUnit) {
         return items;
       }
 
-      const existing = items.find((item) => item.id === cluster.id);
+      const existing = items.find((item) => item.id === industryUnit.id);
 
       if (existing) {
         existing.count += 1;
       } else {
         items.push({
-          ...cluster,
-          color_key: getClusterColorKey(cluster.name, cluster.color_key),
+          ...industryUnit,
+          color_key: getIndustryUnitColorKey(
+            industryUnit.name,
+            industryUnit.color_key,
+          ),
           count: 1,
-          href: `/projects?cluster=${cluster.id}`,
+          href: `/projects?industry_unit=${industryUnit.id}`,
         });
       }
 
       return items;
     }, []);
-  const missingCount = projects.filter((project) => !project.cluster).length;
+  const missingCount = projects.filter((project) => !project.industry_unit)
+    .length;
 
   return sortDistributionItems([
     ...items,
-    ...unknownClusterItems,
+    ...unknownIndustryUnitItems,
     {
-      id: "cluster-missing",
-      name: "Без кластера",
+      id: "industry-unit-missing",
+      name: "Без отраслевого управления",
       color_key: "gray",
       count: missingCount,
-      href: "/projects?cluster=__none",
+      href: "/projects?industry_unit=__none",
     },
   ]);
 }

@@ -16,6 +16,7 @@ type ProjectListRow = {
   client: string | null;
   project_name: string | null;
   essence: string | null;
+  is_social: boolean;
   is_flagship: boolean;
   is_archived: boolean;
   flagship_description_uploaded: boolean | null;
@@ -25,13 +26,11 @@ type ProjectListRow = {
   flagship_approved_by_ca: boolean | null;
   next_step: string | null;
   updated_at: string;
-  cluster_id: string | null;
   status_id: string | null;
   csm_id: string | null;
   director_id: string | null;
   industry_unit_id: string | null;
   flagship_status_id: string | null;
-  cluster: ReferenceItem | null;
   status: ReferenceItem | null;
   flagship_status: ReferenceItem | null;
   csm: ProjectDetail["csm"];
@@ -85,7 +84,6 @@ function normalizeProjectListItem(row: ProjectListRow): ProjectListItem {
     flagship_passport_uploaded: row.flagship_passport_uploaded ?? false,
     flagship_uploaded_to_prbr: row.flagship_uploaded_to_prbr ?? false,
     flagship_approved_by_ca: row.flagship_approved_by_ca ?? false,
-    cluster: normalizeRelation(row.cluster),
     status: normalizeRelation(row.status),
     flagship_status: normalizeRelation(row.flagship_status),
     csm: normalizeRelation(row.csm),
@@ -135,7 +133,6 @@ export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
   const [
     projectsResult,
     statusesResult,
-    clustersResult,
     flagshipStatusesResult,
     csmsResult,
     directorsResult,
@@ -150,11 +147,11 @@ export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
           client,
           project_name,
           essence,
-          cluster_id,
           status_id,
           csm_id,
           director_id,
           industry_unit_id,
+          is_social,
           is_flagship,
           flagship_description_uploaded,
           flagship_passport_uploaded,
@@ -165,22 +162,16 @@ export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
           is_archived,
           next_step,
           updated_at,
-          cluster:clusters(id, name, color_key, sort_order),
           status:project_statuses(id, name, color_key, sort_order),
           flagship_status:flagship_statuses(id, name, color_key, sort_order),
           csm:people!projects_csm_id_fkey(id, full_name, person_type, email),
           director:people!projects_director_id_fkey(id, full_name, person_type, email),
-          industry_unit:industry_units(id, name)
+          industry_unit:industry_units(id, name, color_key, sort_order)
         `,
       )
       .order("updated_at", { ascending: false }),
     supabase
       .from("project_statuses")
-      .select("id, name, color_key, sort_order")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("clusters")
       .select("id, name, color_key, sort_order")
       .eq("is_active", true)
       .order("sort_order", { ascending: true }),
@@ -203,15 +194,15 @@ export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
       .order("full_name", { ascending: true }),
     supabase
       .from("industry_units")
-      .select("id, name")
+      .select("id, name, color_key, sort_order")
       .eq("is_active", true)
+      .order("sort_order", { ascending: true, nullsFirst: false })
       .order("name", { ascending: true }),
   ]);
 
   const error =
     projectsResult.error ??
     statusesResult.error ??
-    clustersResult.error ??
     flagshipStatusesResult.error ??
     csmsResult.error ??
     directorsResult.error ??
@@ -222,7 +213,6 @@ export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
       normalizeProjectListItem,
     ),
     statuses: (statusesResult.data ?? []) as ReferenceItem[],
-    clusters: (clustersResult.data ?? []) as ReferenceItem[],
     flagshipStatuses: (flagshipStatusesResult.data ?? []) as ReferenceItem[],
     csms: (csmsResult.data ?? []) as ProjectEditReferences["csms"],
     directors: (directorsResult.data ??
@@ -246,8 +236,8 @@ export async function getProjectDetail(
         external_id,
         client,
         project_name,
-        cluster_id,
         status_id,
+        is_social,
         is_flagship,
         flagship_status_id,
         is_archived,
@@ -269,12 +259,11 @@ export async function getProjectDetail(
         director_id,
         industry_unit_id,
         updated_at,
-        cluster:clusters(id, name, color_key, sort_order),
         status:project_statuses(id, name, color_key, sort_order),
         flagship_status:flagship_statuses(id, name, color_key, sort_order),
         csm:people!projects_csm_id_fkey(id, full_name, person_type, email),
         director:people!projects_director_id_fkey(id, full_name, person_type, email),
-        industry_unit:industry_units(id, name)
+        industry_unit:industry_units(id, name, color_key, sort_order)
       `,
     )
     .eq("id", id)
@@ -304,7 +293,6 @@ export async function getProjectDetailPageData(id: string): Promise<{
   const [
     projectResult,
     statusesResult,
-    clustersResult,
     flagshipStatusesResult,
     csmsResult,
     directorsResult,
@@ -316,11 +304,6 @@ export async function getProjectDetailPageData(id: string): Promise<{
     getProjectDetail(id),
     supabase
       .from("project_statuses")
-      .select("id, name, color_key, sort_order")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("clusters")
       .select("id, name, color_key, sort_order")
       .eq("is_active", true)
       .order("sort_order", { ascending: true }),
@@ -343,8 +326,9 @@ export async function getProjectDetailPageData(id: string): Promise<{
       .order("full_name", { ascending: true }),
     supabase
       .from("industry_units")
-      .select("id, name")
+      .select("id, name, color_key, sort_order")
       .eq("is_active", true)
+      .order("sort_order", { ascending: true, nullsFirst: false })
       .order("name", { ascending: true }),
     supabase
       .from("project_changes")
@@ -400,7 +384,6 @@ export async function getProjectDetailPageData(id: string): Promise<{
 
   const referenceError =
     statusesResult.error ??
-    clustersResult.error ??
     flagshipStatusesResult.error ??
     csmsResult.error ??
     directorsResult.error ??
@@ -413,7 +396,6 @@ export async function getProjectDetailPageData(id: string): Promise<{
     project: projectResult.project,
     references: {
       statuses: (statusesResult.data ?? []) as ReferenceItem[],
-      clusters: (clustersResult.data ?? []) as ReferenceItem[],
       flagshipStatuses: (flagshipStatusesResult.data ?? []) as ReferenceItem[],
       csms: (csmsResult.data ?? []) as ProjectEditReferences["csms"],
       directors: (directorsResult.data ??

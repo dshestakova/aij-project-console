@@ -51,7 +51,7 @@ const chartToneByColor: Record<string, string> = {
   violet: "bg-violet-400",
 };
 
-const clusterColorByName: Record<string, ColorKey> = {
+const industryUnitColorByName: Record<string, ColorKey> = {
   "сфера услуг": "cyan",
   торговля: "green",
   промышленность: "violet",
@@ -61,7 +61,6 @@ const clusterColorByName: Record<string, ColorKey> = {
   социальный: "rose",
   скм: "blue-violet",
   транспорт: "blue-gray",
-  опк: "navy",
 };
 
 export function getBadgeTone(colorKey: ColorKey | null | undefined) {
@@ -76,9 +75,9 @@ export function getChartTone(colorKey: ColorKey | null | undefined) {
   return chartToneByColor[colorKey ?? ""] ?? chartToneByColor.gray;
 }
 
-export function getClusterColorKey(
+export function getIndustryUnitColorKey(
   name: string | null | undefined,
   colorKey: ColorKey | null | undefined,
 ) {
-  return clusterColorByName[name?.trim().toLowerCase() ?? ""] ?? colorKey;
+  return industryUnitColorByName[name?.trim().toLowerCase() ?? ""] ?? colorKey;
 }
