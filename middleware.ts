@@ -43,9 +43,12 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const { data, error } = await supabase.auth.getClaims();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
-  const isAuthenticated = Boolean(data?.claims && !error);
+  const isAuthenticated = Boolean(user && !error);
 
   if (isProtectedRoute && !isAuthenticated) {
     const redirectUrl = request.nextUrl.clone();

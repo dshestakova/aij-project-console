@@ -72,6 +72,7 @@ npm run build
 - `docs/VERCEL_SETUP.md`: manual Vercel setup guide.
 - `docs/SUPABASE_SETUP.md`: manual Supabase setup guide.
 - `docs/CSV_IMPORT.md`: local CSV import workflow for project data.
+- `docs/PASSPORT_FILLER_INTEGRATION.md`: runbook for external passport autofill integration.
 
 ## Supabase Environment
 
@@ -84,6 +85,17 @@ SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 Only `NEXT_PUBLIC_*` values may be exposed to the browser. `SUPABASE_SERVICE_ROLE_KEY` is used only by server-side admin routes and must never be committed, sent in chat, or prefixed with `NEXT_PUBLIC_`.
+
+Passport autofill integration with external service uses server-only variables:
+
+```bash
+PASSPORT_FILLER_ENABLED=
+PASSPORT_FILLER_BASE_URL=
+PASSPORT_FILLER_API_PREFIX=
+PASSPORT_FILLER_API_TOKEN=
+PASSPORT_FILLER_TIMEOUT_MS=
+PASSPORT_FILLER_RETRY_COUNT=
+```
 
 ## Supabase Auth
 

@@ -2,8 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 
+import { PassportFillerClient } from "@/lib/passport-filler/client";
+import {
+  mapPassportFillerRatingToInnovationLevel,
+  mapProjectToPassportFillerInput,
+} from "@/lib/passport-filler/mappers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { ProjectDetail } from "@/types/project-registry";
+import type {
+  PassportFillerProjectState,
+  PassportFillerProjectStatus,
+} from "@/types/passport-filler";
 
 export type ProjectEditInput = {
   external_id: string;
@@ -52,6 +61,22 @@ export type PassportDownloadResult = {
   url?: string;
   fileName?: string;
 };
+
+export type PassportAutofillStartResult = {
+  ok: boolean;
+  message: string;
+  remoteProjectId?: string;
+};
+
+export type PassportAutofillStatusResult = {
+  ok: boolean;
+  message: string;
+  status?: PassportFillerProjectStatus;
+  isTerminal?: boolean;
+  projectState?: PassportFillerProjectState;
+};
+
+export type PassportAutofillFinalizeResult = ProjectEditResult;
 
 type EditableProjectRow = {
   id: string;
@@ -346,30 +371,308 @@ export async function registerPassportUploadAction(
   input: PassportUploadInput,
 ): Promise<PassportUploadResult> {
   const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return {
-      ok: false,
-      message: "Нужно войти в систему, чтобы загрузить паспорт.",
-    };
+  const auth = await requireEditorProfile(
+    supabase,
+    "Нужно войти в систему, чтобы загрузить паспорт.",
+    "У вас нет прав на загрузку паспорта проекта.",
+  );
+  if (!auth.ok) {
+    return auth.result;
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, role")
-    .eq("id", user.id)
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .select("id, flagship_passport_uploaded")
+    .eq("id", projectId)
     .maybeSingle();
 
-  if (profileError || !profile || !["admin", "editor"].includes(profile.role)) {
+  if (projectError || !project) {
     return {
       ok: false,
-      message: "У вас нет прав на загрузку паспорта проекта.",
+      message: "Не удалось найти проект для загрузки паспорта.",
     };
   }
 
+  return registerPassportVersionAndAudit({
+    supabase,
+    changedBy: auth.profile.id,
+    projectId,
+    input,
+    source: "web",
+    changeNewValueWhenAlreadyUploaded: "Паспорт обновлен",
+  });
+}
+
+export async function startPassportAutofillAction(
+  projectId: string,
+): Promise<PassportAutofillStartResult> {
+  const supabase = await createServerSupabaseClient();
+  const auth = await requireEditorProfile(
+    supabase,
+    "Нужно войти в систему, чтобы запустить автозаполнение паспорта.",
+    "У вас нет прав на автозаполнение паспорта.",
+  );
+  if (!auth.ok) {
+    return auth.result;
+  }
+
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .select(
+      `
+        id,
+        external_id,
+        client,
+        project_name,
+        cluster_id,
+        status_id,
+        is_flagship,
+        flagship_status_id,
+        is_archived,
+        essence,
+        progress,
+        next_step,
+        funding,
+        funding_status,
+        comment,
+        flagship_problem_description,
+        flagship_solution_description,
+        flagship_ai_functionality,
+        flagship_description_uploaded,
+        flagship_passport_uploaded,
+        flagship_innovation_level,
+        flagship_uploaded_to_prbr,
+        flagship_approved_by_ca,
+        csm_id,
+        director_id,
+        industry_unit_id,
+        updated_at,
+        cluster:clusters(id, name, color_key, sort_order),
+        status:project_statuses(id, name, color_key, sort_order),
+        flagship_status:flagship_statuses(id, name, color_key, sort_order),
+        csm:people!projects_csm_id_fkey(id, full_name, person_type, email),
+        director:people!projects_director_id_fkey(id, full_name, person_type, email),
+        industry_unit:industry_units(id, name)
+      `,
+    )
+    .eq("id", projectId)
+    .maybeSingle();
+
+  if (projectError || !project) {
+    return {
+      ok: false,
+      message: "Не удалось загрузить данные проекта для автозаполнения паспорта.",
+    };
+  }
+
+  try {
+    const client = new PassportFillerClient();
+    const mappedProject = {
+      ...(project as unknown as ProjectDetail),
+      cluster: normalizeRelation(project.cluster),
+      status: normalizeRelation(project.status),
+      flagship_status: normalizeRelation(project.flagship_status),
+      csm: normalizeRelation(project.csm),
+      director: normalizeRelation(project.director),
+      industry_unit: normalizeRelation(project.industry_unit),
+    } as unknown as ProjectDetail;
+    const payload = mapProjectToPassportFillerInput(mappedProject);
+    const created = await client.createProject(payload);
+    if (!created.id) {
+      return {
+        ok: false,
+        message:
+          "Внешний сервис вернул некорректный ответ при создании задачи.",
+      };
+    }
+
+    await client.startProject(created.id);
+
+    await supabase.from("project_changes").insert({
+      project_id: projectId,
+      changed_by: auth.profile.id,
+      field_name: "passport_autofill_started",
+      old_value: null,
+      new_value: `run_id=${created.id}`,
+      source: "passport_filler",
+    });
+
+    return {
+      ok: true,
+      message: "Автозаполнение паспорта запущено.",
+      remoteProjectId: created.id,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: `Не удалось запустить автозаполнение: ${getActionErrorMessage(error)}`,
+    };
+  }
+}
+
+export async function getPassportAutofillStatusAction(
+  projectId: string,
+  remoteProjectId: string,
+): Promise<PassportAutofillStatusResult> {
+  const supabase = await createServerSupabaseClient();
+  const auth = await requireEditorProfile(
+    supabase,
+    "Нужно войти в систему, чтобы проверить статус автозаполнения.",
+    "У вас нет прав на просмотр статуса автозаполнения.",
+  );
+  if (!auth.ok) {
+    return auth.result;
+  }
+
+  if (!projectId || !remoteProjectId.trim()) {
+    return {
+      ok: false,
+      message: "Не передан идентификатор задачи автозаполнения.",
+    };
+  }
+
+  try {
+    const client = new PassportFillerClient();
+    const projectState = await client.getProject(remoteProjectId.trim());
+    const status = projectState.status;
+
+    const isTerminal =
+      status === "completed" ||
+      status === "failed" ||
+      status === "escalated" ||
+      status === "revise";
+
+    return {
+      ok: true,
+      message: isTerminal
+        ? "Обработка завершена."
+        : "Паспорт находится в обработке.",
+      status,
+      isTerminal,
+      projectState,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: `Не удалось получить статус автозаполнения: ${getActionErrorMessage(error)}`,
+    };
+  }
+}
+
+export async function finalizePassportAutofillAction(
+  projectId: string,
+  remoteProjectId: string,
+): Promise<PassportAutofillFinalizeResult> {
+  const supabase = await createServerSupabaseClient();
+  const auth = await requireEditorProfile(
+    supabase,
+    "Нужно войти в систему, чтобы завершить автозаполнение паспорта.",
+    "У вас нет прав на завершение автозаполнения паспорта.",
+  );
+  if (!auth.ok) {
+    return auth.result;
+  }
+
+  if (!remoteProjectId.trim()) {
+    return {
+      ok: false,
+      message: "Не передан идентификатор задачи автозаполнения.",
+    };
+  }
+
+  try {
+    const client = new PassportFillerClient();
+    const state = await client.getProject(remoteProjectId.trim());
+
+    if (state.status !== "completed") {
+      return {
+        ok: false,
+        message: `Нельзя завершить автозаполнение. Текущий статус: ${state.status}.`,
+      };
+    }
+
+    const passportBlob = await client.downloadPassport(remoteProjectId.trim());
+    const arrayBuffer = await passportBlob.arrayBuffer();
+    const bytes = Buffer.from(arrayBuffer);
+    const now = Date.now();
+    const fileName = `passport-autofill-${remoteProjectId.trim()}.xlsx`;
+    const storagePath = `projects/${projectId}/passport/${now}-${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("project-files")
+      .upload(storagePath, bytes, {
+        contentType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      return {
+        ok: false,
+        message: `Не удалось сохранить файл автозаполненного паспорта: ${getActionErrorMessage(
+          uploadError,
+        )}`,
+      };
+    }
+
+    const registerResult = await registerPassportVersionAndAudit({
+      supabase,
+      changedBy: auth.profile.id,
+      projectId,
+      input: {
+        file_name: fileName,
+        storage_path: storagePath,
+        mime_type:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        size_bytes: bytes.byteLength,
+      },
+      source: "passport_filler",
+      changeNewValueWhenAlreadyUploaded: "Паспорт обновлен автозаполнением",
+    });
+
+    if (!registerResult.ok) {
+      return registerResult;
+    }
+
+    await applyAutofillProjectData({
+      supabase,
+      changedBy: auth.profile.id,
+      projectId,
+      state,
+      remoteProjectId: remoteProjectId.trim(),
+    });
+
+    revalidatePath(`/projects/${projectId}`);
+    revalidatePath("/projects");
+    revalidatePath("/dashboard");
+
+    return {
+      ok: true,
+      message: "Автозаполненный паспорт сохранен как новая версия.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: `Не удалось завершить автозаполнение: ${getActionErrorMessage(error)}`,
+    };
+  }
+}
+
+async function registerPassportVersionAndAudit({
+  supabase,
+  changedBy,
+  projectId,
+  input,
+  source,
+  changeNewValueWhenAlreadyUploaded,
+}: {
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>;
+  changedBy: string;
+  projectId: string;
+  input: PassportUploadInput;
+  source: "web" | "passport_filler";
+  changeNewValueWhenAlreadyUploaded: string;
+}): Promise<PassportUploadResult> {
   const { data: project, error: projectError } = await supabase
     .from("projects")
     .select("id, flagship_passport_uploaded")
@@ -426,7 +729,7 @@ export async function registerPassportUploadAction(
     storage_path: input.storage_path,
     mime_type: input.mime_type,
     size_bytes: input.size_bytes,
-    uploaded_by: profile.id,
+    uploaded_by: changedBy,
     version_number: nextVersion,
     is_current: true,
     description: "Паспорт проекта",
@@ -460,11 +763,13 @@ export async function registerPassportUploadAction(
     .from("project_changes")
     .insert({
       project_id: projectId,
-      changed_by: profile.id,
+      changed_by: changedBy,
       field_name: "flagship_passport_uploaded",
       old_value: wasUploaded ? "Паспорт загружен" : "Паспорт не загружен",
-      new_value: wasUploaded ? "Паспорт обновлен" : "Паспорт загружен",
-      source: "web",
+      new_value: wasUploaded
+        ? changeNewValueWhenAlreadyUploaded
+        : "Паспорт загружен",
+      source,
     });
 
   if (changeInsertError) {
@@ -482,7 +787,11 @@ export async function registerPassportUploadAction(
 
   return {
     ok: true,
-    message: wasUploaded ? "Паспорт обновлен." : "Паспорт загружен.",
+    message: wasUploaded
+      ? source === "passport_filler"
+        ? "Паспорт обновлен автозаполнением."
+        : "Паспорт обновлен."
+      : "Паспорт загружен.",
   };
 }
 
@@ -692,6 +1001,134 @@ async function getReferenceLabels() {
   };
 }
 
+async function requireEditorProfile(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  unauthorizedMessage: string,
+  forbiddenMessage: string,
+): Promise<
+  | {
+      ok: true;
+      profile: { id: string; role: string };
+    }
+  | {
+      ok: false;
+      result: { ok: false; message: string };
+    }
+> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        message: unauthorizedMessage,
+      },
+    };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile || !["admin", "editor"].includes(profile.role)) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        message: forbiddenMessage,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    profile,
+  };
+}
+
+async function applyAutofillProjectData({
+  supabase,
+  changedBy,
+  projectId,
+  state,
+  remoteProjectId,
+}: {
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>;
+  changedBy: string;
+  projectId: string;
+  state: PassportFillerProjectState;
+  remoteProjectId: string;
+}) {
+  const working = state.working ?? {};
+  const updatePayload: Record<string, string | boolean | null> = {};
+  const changes: ChangeDraft[] = [];
+
+  const problem = nullableText(working.problem ?? "");
+  const solution = nullableText(working.solution ?? "");
+  const functionality = nullableText(working.functionality ?? "");
+  const innovationLevel = mapPassportFillerRatingToInnovationLevel(
+    state.final_assessment?.rating,
+  );
+  const descriptionUploaded = Boolean(problem && solution && functionality);
+
+  updatePayload.flagship_problem_description = problem;
+  updatePayload.flagship_solution_description = solution;
+  updatePayload.flagship_ai_functionality = functionality;
+  updatePayload.flagship_description_uploaded = descriptionUploaded;
+  updatePayload.flagship_innovation_level = innovationLevel;
+
+  changes.push({
+    field_name: "passport_autofill_completed",
+    old_value: null,
+    new_value: `run_id=${remoteProjectId}; status=${state.status}`,
+  });
+  changes.push({
+    field_name: "flagship_problem_description",
+    old_value: null,
+    new_value: problem,
+  });
+  changes.push({
+    field_name: "flagship_solution_description",
+    old_value: null,
+    new_value: solution,
+  });
+  changes.push({
+    field_name: "flagship_ai_functionality",
+    old_value: null,
+    new_value: functionality,
+  });
+  changes.push({
+    field_name: "flagship_innovation_level",
+    old_value: null,
+    new_value: innovationLevel,
+  });
+
+  const { error: updateError } = await supabase
+    .from("projects")
+    .update(updatePayload)
+    .eq("id", projectId);
+
+  if (updateError) {
+    return;
+  }
+
+  await supabase.from("project_changes").insert(
+    changes.map((change) => ({
+      project_id: projectId,
+      changed_by: changedBy,
+      field_name: change.field_name,
+      old_value: change.old_value,
+      new_value: change.new_value,
+      source: "passport_filler",
+    })),
+  );
+}
+
 function toLabelMap<T extends { id: string }>(
   items: T[],
   labelKey: keyof T,
@@ -699,4 +1136,12 @@ function toLabelMap<T extends { id: string }>(
   return new Map(
     items.map((item) => [item.id, String(item[labelKey] ?? item.id)]),
   );
+}
+
+function normalizeRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
 }

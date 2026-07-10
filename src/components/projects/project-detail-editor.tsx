@@ -1,12 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import {
+  finalizePassportAutofillAction,
+  getPassportAutofillStatusAction,
   getPassportDownloadUrlAction,
   type ProjectEditInput,
   registerPassportUploadAction,
+  startPassportAutofillAction,
   updateProjectAction,
 } from "@/app/projects/[id]/actions";
 import { Badge } from "@/components/projects/badge";
@@ -91,7 +94,11 @@ export function ProjectDetailEditor({
   const [passportMessage, setPassportMessage] = useState<string | null>(null);
   const [passportError, setPassportError] = useState<string | null>(null);
   const [isPassportBusy, setIsPassportBusy] = useState(false);
+  const [autofillStatus, setAutofillStatus] = useState<string | null>(null);
+  const [remoteAutofillId, setRemoteAutofillId] = useState<string | null>(null);
+  const [isAutofillBusy, setIsAutofillBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function updateField<K extends keyof ProjectEditInput>(
     field: K,
@@ -199,6 +206,107 @@ export function ProjectDetailEditor({
     }
   }
 
+  async function handleStartPassportAutofill() {
+    setPassportError(null);
+    setPassportMessage(null);
+    setAutofillStatus("Запускаем автозаполнение...");
+    setIsAutofillBusy(true);
+
+    try {
+      const startResult = await startPassportAutofillAction(project.id);
+      if (!startResult.ok || !startResult.remoteProjectId) {
+        setPassportError(startResult.message);
+        setAutofillStatus(null);
+        return;
+      }
+
+      setRemoteAutofillId(startResult.remoteProjectId);
+      setAutofillStatus("Паспорт отправлен во внешний сервис. Идет обработка...");
+    } finally {
+      setIsAutofillBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!remoteAutofillId) {
+      return;
+    }
+    const runId: string = remoteAutofillId;
+
+    let disposed = false;
+
+    async function pollStatus() {
+      const statusResult = await getPassportAutofillStatusAction(
+        project.id,
+        runId,
+      );
+
+      if (disposed) {
+        return;
+      }
+
+      if (!statusResult.ok) {
+        setPassportError(statusResult.message);
+        setAutofillStatus(null);
+        setRemoteAutofillId(null);
+        return;
+      }
+
+      if (!statusResult.status) {
+        setAutofillStatus("Ожидание статуса обработки...");
+      } else if (statusResult.status === "completed") {
+        setAutofillStatus("Сохраняем готовый паспорт в реестр проекта...");
+        setIsAutofillBusy(true);
+        const finalizeResult = await finalizePassportAutofillAction(
+          project.id,
+          runId,
+        );
+        setIsAutofillBusy(false);
+
+        if (!finalizeResult.ok) {
+          setPassportError(finalizeResult.message);
+          setAutofillStatus(null);
+          setRemoteAutofillId(null);
+          return;
+        }
+
+        setPassportMessage(finalizeResult.message);
+        setAutofillStatus("Автозаполнение завершено.");
+        setRemoteAutofillId(null);
+        router.refresh();
+        return;
+      } else if (
+        statusResult.status === "failed" ||
+        statusResult.status === "escalated" ||
+        statusResult.status === "revise"
+      ) {
+        const details = statusResult.projectState?.error
+          ? ` ${statusResult.projectState.error}`
+          : "";
+        setPassportError(
+          `Автозаполнение завершилось со статусом ${statusResult.status}.${details}`,
+        );
+        setAutofillStatus(null);
+        setRemoteAutofillId(null);
+        return;
+      } else {
+        setAutofillStatus(`Статус автозаполнения: ${statusResult.status}`);
+      }
+
+      pollTimerRef.current = setTimeout(pollStatus, 2500);
+    }
+
+    pollTimerRef.current = setTimeout(pollStatus, 1000);
+
+    return () => {
+      disposed = true;
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+      }
+      pollTimerRef.current = null;
+    };
+  }, [project.id, remoteAutofillId, router]);
+
   return (
     <>
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -287,10 +395,13 @@ export function ProjectDetailEditor({
           onCancel={handleCancel}
           onChange={updateField}
           onPassportDownload={handlePassportDownload}
+          onPassportAutofillStart={handleStartPassportAutofill}
           onPassportUpload={handlePassportUpload}
           onSubmit={handleSubmit}
           passportError={passportError}
           passportMessage={passportMessage}
+          autofillStatus={autofillStatus}
+          isAutofillBusy={isAutofillBusy}
           references={references}
         />
       ) : (
@@ -298,8 +409,11 @@ export function ProjectDetailEditor({
           currentPassport={currentPassport}
           isPassportBusy={isPassportBusy}
           onPassportDownload={handlePassportDownload}
+          onPassportAutofillStart={handleStartPassportAutofill}
           passportError={passportError}
           passportMessage={passportMessage}
+          autofillStatus={autofillStatus}
+          isAutofillBusy={isAutofillBusy}
           project={project}
         />
       )}
@@ -310,15 +424,21 @@ export function ProjectDetailEditor({
 }
 
 function ProjectReadOnlyView({
+  autofillStatus,
   currentPassport,
+  isAutofillBusy,
   isPassportBusy,
+  onPassportAutofillStart,
   onPassportDownload,
   passportError,
   passportMessage,
   project,
 }: {
+  autofillStatus: string | null;
   currentPassport: ProjectFileItem | null;
+  isAutofillBusy: boolean;
   isPassportBusy: boolean;
+  onPassportAutofillStart: () => void;
   onPassportDownload: () => void;
   passportError: string | null;
   passportMessage: string | null;
@@ -357,8 +477,11 @@ function ProjectReadOnlyView({
           uploadedToPrbr={project.flagship_uploaded_to_prbr}
         />
         <PassportProjectBlock
+          autofillStatus={autofillStatus}
           currentPassport={currentPassport}
+          isAutofillBusy={isAutofillBusy}
           isBusy={isPassportBusy}
+          onAutofillStart={onPassportAutofillStart}
           onDownload={onPassportDownload}
           passportUploaded={project.flagship_passport_uploaded}
           passportError={passportError}
@@ -381,12 +504,15 @@ function ProjectReadOnlyView({
 }
 
 function ProjectEditForm({
+  autofillStatus,
   currentPassport,
   form,
+  isAutofillBusy,
   isPending,
   isPassportBusy,
   onCancel,
   onChange,
+  onPassportAutofillStart,
   onPassportDownload,
   onPassportUpload,
   onSubmit,
@@ -394,8 +520,10 @@ function ProjectEditForm({
   passportMessage,
   references,
 }: {
+  autofillStatus: string | null;
   currentPassport: ProjectFileItem | null;
   form: ProjectEditInput;
+  isAutofillBusy: boolean;
   isPending: boolean;
   isPassportBusy: boolean;
   onCancel: () => void;
@@ -403,6 +531,7 @@ function ProjectEditForm({
     field: K,
     value: ProjectEditInput[K],
   ) => void;
+  onPassportAutofillStart: () => void;
   onPassportDownload: () => void;
   onPassportUpload: (file: File) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -567,8 +696,11 @@ function ProjectEditForm({
             </div>
 
             <PassportProjectBlock
+              autofillStatus={autofillStatus}
               currentPassport={currentPassport}
+              isAutofillBusy={isAutofillBusy}
               isBusy={isPassportBusy}
+              onAutofillStart={onPassportAutofillStart}
               onDownload={onPassportDownload}
               onPassportUploadedChange={(value) =>
                 onChange("flagship_passport_uploaded", value)
@@ -735,8 +867,11 @@ function FlagshipCard({
 }
 
 function PassportProjectBlock({
+  autofillStatus,
   currentPassport,
+  isAutofillBusy,
   isBusy,
+  onAutofillStart,
   onDownload,
   onPassportUploadedChange,
   onUpload,
@@ -745,8 +880,11 @@ function PassportProjectBlock({
   passportMessage,
   variant,
 }: {
+  autofillStatus: string | null;
   currentPassport: ProjectFileItem | null;
+  isAutofillBusy: boolean;
   isBusy: boolean;
+  onAutofillStart: () => void;
   onDownload: () => void;
   onPassportUploadedChange?: (value: boolean) => void;
   onUpload?: (file: File) => void;
@@ -839,6 +977,11 @@ function PassportProjectBlock({
           {passportError}
         </p>
       ) : null}
+      {autofillStatus ? (
+        <p className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          {autofillStatus}
+        </p>
+      ) : null}
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <button
@@ -849,6 +992,16 @@ function PassportProjectBlock({
         >
           {isBusy ? "Готовим..." : "Скачать паспорт"}
         </button>
+        {variant === "edit" ? (
+          <button
+            className="h-10 rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:bg-indigo-50 disabled:text-indigo-300"
+            disabled={isBusy || isAutofillBusy}
+            onClick={onAutofillStart}
+            type="button"
+          >
+            {isAutofillBusy ? "Обрабатываем..." : "Автозаполнить паспорт"}
+          </button>
+        ) : null}
         {variant === "edit" ? (
           <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950">
             <span>
