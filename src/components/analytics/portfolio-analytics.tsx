@@ -188,16 +188,17 @@ function SegmentCard({
       </span>
     </>
   );
-  const className =
-    "flex items-start gap-2.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm transition hover:border-slate-300 hover:bg-white";
+  const baseClassName =
+    "flex items-start gap-2.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm";
+  const linkClassName = `${baseClassName} cursor-pointer transition hover:border-slate-300 hover:bg-white`;
   const title = `${segment.label} — ${segment.count} проектов`;
 
   return segment.href ? (
-    <Link className={className} href={segment.href} title={title}>
+    <Link className={linkClassName} href={segment.href} title={title}>
       {content}
     </Link>
   ) : (
-    <div className={className} title={title}>
+    <div className={baseClassName} title={title}>
       {content}
     </div>
   );
@@ -244,9 +245,13 @@ function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"]
                 key={group.id}
               >
                 <div>
-                  <p className="text-sm font-semibold text-slate-950">
+                  <Link
+                    className="text-sm font-semibold text-slate-950 transition hover:text-slate-600"
+                    href={`/projects?csm=${group.id}`}
+                    title={`${group.name} — ${group.count} проектов`}
+                  >
                     {group.name}
-                  </p>
+                  </Link>
                   <p className="mt-0.5 text-xs text-slate-500">
                     {group.count} проектов
                   </p>

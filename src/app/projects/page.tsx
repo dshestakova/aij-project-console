@@ -28,6 +28,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     statuses,
   } = await getProjectRegistryData();
   const currentProfile = await getCurrentProfile();
+  const initialFilters = getInitialFilters(resolvedSearchParams);
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
@@ -69,7 +70,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             directors={directors}
             flagshipStatuses={flagshipStatuses}
             industryUnits={industryUnits}
-            initialFilters={getInitialFilters(resolvedSearchParams)}
+            initialFilters={initialFilters}
+            key={getFiltersKey(initialFilters)}
             projects={projects}
             statuses={statuses}
           />
@@ -77,6 +79,19 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       </div>
     </main>
   );
+}
+
+function getFiltersKey(filters: ReturnType<typeof getInitialFilters>) {
+  return [
+    filters.statusId,
+    filters.clusterId,
+    filters.csmId,
+    filters.directorId,
+    filters.industryUnitId,
+    filters.flagshipStatusId,
+    filters.flagship,
+    filters.archiveMode,
+  ].join("|");
 }
 
 function getInitialFilters(
