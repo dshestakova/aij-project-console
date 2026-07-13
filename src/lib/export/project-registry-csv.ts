@@ -13,9 +13,16 @@ export type ProjectRegistryExportRow = {
   comment: string | null;
   is_flagship: boolean | null;
   is_archived: boolean | null;
-  flagship_problem_description: string | null;
-  flagship_solution_description: string | null;
-  flagship_ai_functionality: string | null;
+  flagship_client_current_state: string | null;
+  flagship_current_process: string | null;
+  flagship_scope: string | null;
+  flagship_client_usage: string | null;
+  flagship_result_users: string | null;
+  flagship_tech_stack: string | null;
+  flagship_available_data: string | null;
+  flagship_uncertain_data: string | null;
+  flagship_out_of_scope: string | null;
+  flagship_competitors: string | null;
   flagship_description_uploaded: boolean | null;
   flagship_passport_uploaded: boolean | null;
   flagship_innovation_level: string | null;
@@ -65,9 +72,16 @@ const CSV_HEADERS = [
   "Отраслевое управление",
   "Флагман",
   "Статус флагмана",
-  "Описание проблемы",
-  "Описание решения",
-  "Ключевой функционал ИИ",
+  "Что сейчас есть у клиента",
+  "Как выглядит текущий процесс",
+  "Что именно дорабатываем / создаем",
+  "Как и для чего клиент это использует",
+  "Кто будет пользоваться результатом",
+  "Технический стек",
+  "Какие данные доступны",
+  "Какие данные пока под вопросом",
+  "Что точно не делаем",
+  "Конкуренты",
   "Инновационность",
   "Описание загружено",
   "Паспорт загружен",
@@ -107,9 +121,16 @@ export function buildProjectRegistryCsv(rows: ProjectRegistryExportRow[]) {
       cell(getRelationName(project.industry_unit)),
       booleanCell(project.is_flagship),
       cell(getRelationName(project.flagship_status)),
-      cell(project.flagship_problem_description),
-      cell(project.flagship_solution_description),
-      cell(project.flagship_ai_functionality),
+      cell(project.flagship_client_current_state),
+      cell(project.flagship_current_process),
+      cell(project.flagship_scope),
+      cell(project.flagship_client_usage),
+      cell(project.flagship_result_users),
+      cell(project.flagship_tech_stack),
+      cell(project.flagship_available_data),
+      cell(project.flagship_uncertain_data),
+      cell(project.flagship_out_of_scope),
+      cell(project.flagship_competitors),
       cell(project.flagship_innovation_level),
       booleanCell(project.flagship_description_uploaded),
       booleanCell(project.flagship_passport_uploaded),

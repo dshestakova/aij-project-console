@@ -66,15 +66,103 @@ const fieldLabels: Record<string, string> = {
   is_archived: "Архив",
   is_flagship: "Флагман",
   flagship_status_id: "Статус флагмана",
-  flagship_problem_description: "Описание проблемы",
-  flagship_solution_description: "Описание решения",
-  flagship_ai_functionality: "Ключевой функционал ИИ",
   flagship_description_uploaded: "Описание загружено",
   flagship_passport_uploaded: "Паспорт загружен",
   flagship_innovation_level: "Инновационность",
   flagship_uploaded_to_prbr: "Загружен на ПРБР",
   flagship_approved_by_ca: "Одобрен ЦА",
+  flagship_client_current_state: "Что сейчас есть у клиента",
+  flagship_current_process: "Как выглядит текущий процесс",
+  flagship_scope: "Что именно дорабатываем / создаем",
+  flagship_client_usage: "Как и для чего клиент это использует",
+  flagship_result_users: "Кто будет пользоваться результатом",
+  flagship_tech_stack: "Технический стек",
+  flagship_available_data: "Какие данные доступны",
+  flagship_uncertain_data: "Какие данные пока под вопросом",
+  flagship_out_of_scope: "Что точно не делаем",
+  flagship_competitors: "Конкуренты",
 };
+
+type FlagshipPassportField = {
+  name: keyof Pick<
+    ProjectEditInput,
+    | "flagship_client_current_state"
+    | "flagship_current_process"
+    | "flagship_scope"
+    | "flagship_client_usage"
+    | "flagship_result_users"
+    | "flagship_tech_stack"
+    | "flagship_available_data"
+    | "flagship_uncertain_data"
+    | "flagship_out_of_scope"
+    | "flagship_competitors"
+  >;
+  label: string;
+  placeholder: string;
+};
+
+const flagshipPassportFields: FlagshipPassportField[] = [
+  {
+    name: "flagship_client_current_state",
+    label: "Что сейчас есть у клиента",
+    placeholder:
+      "Опишите текущую ситуацию у клиента: какие системы, процессы, команды или решения уже есть, что работает сейчас.",
+  },
+  {
+    name: "flagship_current_process",
+    label: "Как выглядит текущий процесс",
+    placeholder:
+      "Опишите текущий процесс: кто участвует, какие шаги проходят, сколько это занимает времени, людей или ресурсов.",
+  },
+  {
+    name: "flagship_scope",
+    label: "Что именно дорабатываем / создаем",
+    placeholder:
+      "Опишите, что именно будет создано или доработано в рамках проекта: модуль, агент, сервис, интеграция, аналитика, интерфейс.",
+  },
+  {
+    name: "flagship_client_usage",
+    label: "Как и для чего клиент это использует",
+    placeholder:
+      "Опишите пользовательский сценарий: как клиент будет применять результат в работе и какую задачу это помогает решать.",
+  },
+  {
+    name: "flagship_result_users",
+    label: "Кто будет пользоваться результатом",
+    placeholder:
+      "Укажите пользователей результата: роли, команды, подразделения, внутренние или внешние пользователи.",
+  },
+  {
+    name: "flagship_tech_stack",
+    label: "Технический стек",
+    placeholder:
+      "Укажите технологии и компоненты: LLM/GigaChat, RAG, агенты, API, базы данных, интеграции, frontend/backend, облако, BI и другие инструменты.",
+  },
+  {
+    name: "flagship_available_data",
+    label: "Какие данные доступны",
+    placeholder:
+      "Перечислите данные, которые уже есть или точно будут доступны: документы, таблицы, CRM, транзакции, логи, базы знаний, исторические данные.",
+  },
+  {
+    name: "flagship_uncertain_data",
+    label: "Какие данные пока под вопросом",
+    placeholder:
+      "Опишите данные, доступность или качество которых нужно уточнить: владельцы, доступы, формат, полнота, регулярность обновления.",
+  },
+  {
+    name: "flagship_out_of_scope",
+    label: "Что точно не делаем",
+    placeholder:
+      "Зафиксируйте границы проекта: какие функции, интеграции, процессы или ожидания не входят в текущий объем.",
+  },
+  {
+    name: "flagship_competitors",
+    label: "Конкуренты",
+    placeholder:
+      "По желанию: укажите похожие решения, внутренние альтернативы, внешних конкурентов или бенчмарки.",
+  },
+];
 
 export function ProjectDetailEditor({
   canEdit,
@@ -360,6 +448,7 @@ function ProjectReadOnlyView({
         status={project.flagship_status?.name}
         uploadedToPrbr={project.flagship_uploaded_to_prbr}
       />
+      {project.is_flagship ? <FlagshipPassportDetails project={project} /> : null}
       <PassportProjectBlock
         currentPassport={currentPassport}
         isBusy={isPassportBusy}
@@ -583,31 +672,16 @@ function ProjectEditForm({
               variant="edit"
             />
 
-            <div className="grid gap-4 lg:grid-cols-3">
-              <TextareaField
-                label="Описание проблемы"
-                onChange={(value) =>
-                  onChange("flagship_problem_description", value)
-                }
-                placeholder="Какую бизнес-проблему решает проект?"
-                value={form.flagship_problem_description}
-              />
-              <TextareaField
-                label="Описание решения"
-                onChange={(value) =>
-                  onChange("flagship_solution_description", value)
-                }
-                placeholder="Как именно проблема решается с помощью AI?"
-                value={form.flagship_solution_description}
-              />
-              <TextareaField
-                label="Ключевой функционал ИИ"
-                onChange={(value) =>
-                  onChange("flagship_ai_functionality", value)
-                }
-                placeholder="Какие ИИ-функции используются: предсказание, классификация, генерация и т.д."
-                value={form.flagship_ai_functionality}
-              />
+            <div className="grid gap-4 lg:grid-cols-2">
+              {flagshipPassportFields.map((field) => (
+                <TextareaField
+                  key={field.name}
+                  label={field.label}
+                  onChange={(value) => onChange(field.name, value)}
+                  placeholder={field.placeholder}
+                  value={form[field.name]}
+                />
+              ))}
             </div>
           </div>
         ) : (
@@ -735,6 +809,28 @@ function FlagshipCard({
   }
 
   return <InfoCard rows={rows} title="Флагманский проект" />;
+}
+
+function FlagshipPassportDetails({ project }: { project: ProjectDetail }) {
+  return (
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-950">
+        Описание флагманского проекта
+      </h3>
+      <dl className="mt-4 grid gap-4 lg:grid-cols-2">
+        {flagshipPassportFields.map((field) => (
+          <div className="rounded-md border border-slate-100 bg-slate-50 p-3" key={field.name}>
+            <dt className="text-xs font-medium uppercase text-slate-400">
+              {field.label}
+            </dt>
+            <dd className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+              {getDisplayValue(project[field.name])}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
 }
 
 function PassportProjectBlock({
@@ -1106,9 +1202,17 @@ function getInitialForm(project: ProjectDetail): ProjectEditInput {
     is_archived: project.is_archived,
     is_flagship: project.is_flagship,
     flagship_status_id: project.flagship_status_id ?? "",
-    flagship_problem_description: project.flagship_problem_description ?? "",
-    flagship_solution_description: project.flagship_solution_description ?? "",
-    flagship_ai_functionality: project.flagship_ai_functionality ?? "",
+    flagship_client_current_state:
+      project.flagship_client_current_state ?? "",
+    flagship_current_process: project.flagship_current_process ?? "",
+    flagship_scope: project.flagship_scope ?? "",
+    flagship_client_usage: project.flagship_client_usage ?? "",
+    flagship_result_users: project.flagship_result_users ?? "",
+    flagship_tech_stack: project.flagship_tech_stack ?? "",
+    flagship_available_data: project.flagship_available_data ?? "",
+    flagship_uncertain_data: project.flagship_uncertain_data ?? "",
+    flagship_out_of_scope: project.flagship_out_of_scope ?? "",
+    flagship_competitors: project.flagship_competitors ?? "",
     flagship_passport_uploaded: project.flagship_passport_uploaded,
     flagship_innovation_level: project.flagship_innovation_level ?? "",
     flagship_uploaded_to_prbr: project.flagship_uploaded_to_prbr,
@@ -1118,17 +1222,27 @@ function getInitialForm(project: ProjectDetail): ProjectEditInput {
 
 function getIsDescriptionUploaded(form: ProjectEditInput) {
   return (
-    form.flagship_problem_description.trim().length > 0 &&
-    form.flagship_solution_description.trim().length > 0 &&
-    form.flagship_ai_functionality.trim().length > 0
+    form.flagship_client_current_state.trim().length > 0 &&
+    form.flagship_current_process.trim().length > 0 &&
+    form.flagship_scope.trim().length > 0 &&
+    form.flagship_client_usage.trim().length > 0 &&
+    form.flagship_result_users.trim().length > 0 &&
+    form.flagship_tech_stack.trim().length > 0 &&
+    form.flagship_available_data.trim().length > 0 &&
+    form.flagship_out_of_scope.trim().length > 0
   );
 }
 
 function getProjectDescriptionUploaded(project: ProjectDetail) {
   return (
-    Boolean(project.flagship_problem_description?.trim()) &&
-    Boolean(project.flagship_solution_description?.trim()) &&
-    Boolean(project.flagship_ai_functionality?.trim())
+    Boolean(project.flagship_client_current_state?.trim()) &&
+    Boolean(project.flagship_current_process?.trim()) &&
+    Boolean(project.flagship_scope?.trim()) &&
+    Boolean(project.flagship_client_usage?.trim()) &&
+    Boolean(project.flagship_result_users?.trim()) &&
+    Boolean(project.flagship_tech_stack?.trim()) &&
+    Boolean(project.flagship_available_data?.trim()) &&
+    Boolean(project.flagship_out_of_scope?.trim())
   );
 }
 

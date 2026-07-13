@@ -37,6 +37,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   const activeProjectCount = projects.filter(
     (project) => !isArchivedProject(project),
   ).length;
+  const canCreateProject =
+    currentProfile?.role === "admin" || currentProfile?.role === "editor";
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
@@ -73,6 +75,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           ) : null}
 
           <ProjectsRegistry
+            canCreateProject={canCreateProject}
             csms={csms}
             directors={directors}
             flagshipStatuses={flagshipStatuses}
