@@ -139,12 +139,38 @@ function normalizeProjectDetail(row: ProjectDetailRow): ProjectDetail {
 }
 
 function getSupabaseErrorMessage(error?: unknown) {
+  if (error) {
+    console.error("Supabase project registry query failed", error);
+  }
+
+  if (isMissingSchemaMigrationError(error)) {
+    return "База данных не обновлена: не применена migration для флагманских полей. Обратитесь к администратору.";
+  }
+
   const details =
     error && typeof error === "object" && "message" in error
       ? ` Причина: ${String(error.message)}`
       : "";
 
   return `Не удалось загрузить данные из Supabase. Проверьте RLS, профиль пользователя и доступ к таблицам.${details}`;
+}
+
+function isMissingSchemaMigrationError(error: unknown) {
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String(error.message).toLowerCase()
+      : "";
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String(error.code)
+      : "";
+
+  return (
+    code === "42703" ||
+    code === "PGRST204" ||
+    (message.includes("column") && message.includes("does not exist")) ||
+    (message.includes("schema cache") && message.includes("projects"))
+  );
 }
 
 export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
