@@ -62,6 +62,7 @@ export type PassportDownloadResult = {
 
 export type ProjectCreateResult = ProjectEditResult & {
   projectId?: string;
+  externalId?: string;
 };
 
 type EditableProjectRow = {
@@ -125,38 +126,7 @@ export async function createProjectAction(
   }
 
   const normalized = normalizeInput(input);
-
-  if (!normalized.external_id) {
-    return {
-      ok: false,
-      message: "ID проекта обязателен.",
-    };
-  }
-
-  const { data: existingProject, error: existingProjectError } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("external_id", normalized.external_id)
-    .maybeSingle();
-
-  if (existingProjectError) {
-    return {
-      ok: false,
-      message: `Не удалось проверить уникальность ID проекта: ${getActionErrorMessage(
-        existingProjectError,
-      )}`,
-    };
-  }
-
-  if (existingProject) {
-    return {
-      ok: false,
-      message: "Проект с таким ID уже существует. Укажите другой ID проекта.",
-    };
-  }
-
   const insertPayload = {
-    external_id: normalized.external_id,
     client: normalized.client,
     project_name: normalized.project_name,
     status_id: normalized.status_id,
@@ -193,7 +163,7 @@ export async function createProjectAction(
   const { data: createdProject, error: createError } = await supabase
     .from("projects")
     .insert(insertPayload)
-    .select("id")
+    .select("id, external_id")
     .single();
 
   if (createError || !createdProject) {
@@ -203,7 +173,7 @@ export async function createProjectAction(
     return {
       ok: false,
       message: isDuplicate
-        ? "Проект с таким ID уже существует. Укажите другой ID проекта."
+        ? "Не удалось создать уникальный ID проекта. Повторите сохранение."
         : `Не удалось создать проект: ${getActionErrorMessage(createError)}`,
     };
   }
@@ -215,7 +185,7 @@ export async function createProjectAction(
       changed_by: editorResult.profile.id,
       field_name: "Создан проект",
       old_value: null,
-      new_value: [normalized.external_id, normalized.project_name]
+      new_value: [createdProject.external_id, normalized.project_name]
         .filter(Boolean)
         .join(" — "),
       source: "web",
@@ -227,6 +197,7 @@ export async function createProjectAction(
       message:
         "Проект создан, но историю создания записать не удалось. Проверьте RLS для project_changes.",
       projectId: createdProject.id,
+      externalId: createdProject.external_id,
     };
   }
 
@@ -236,8 +207,9 @@ export async function createProjectAction(
 
   return {
     ok: true,
-    message: "Проект создан.",
+    message: `Проект создан. ID проекта: ${createdProject.external_id}.`,
     projectId: createdProject.id,
+    externalId: createdProject.external_id,
   };
 }
 

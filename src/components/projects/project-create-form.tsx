@@ -182,12 +182,9 @@ export function ProjectCreateForm({ references }: ProjectCreateFormProps) {
 
       <Section title="Основная информация">
         <div className="grid gap-4 lg:grid-cols-3">
-          <TextField
-            label="ID проекта"
-            onChange={(value) => updateField("external_id", value)}
-            required
-            value={form.external_id}
-          />
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 lg:col-span-3">
+            ID проекта будет присвоен автоматически после сохранения.
+          </div>
           <TextField
             label="Клиент"
             onChange={(value) => updateField("client", value)}
