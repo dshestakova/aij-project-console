@@ -74,6 +74,16 @@ export type ProjectDetail = ProjectListItem & {
   flagship_problem_description: string | null;
   flagship_solution_description: string | null;
   flagship_ai_functionality: string | null;
+  flagship_client_current_state: string | null;
+  flagship_current_process: string | null;
+  flagship_scope: string | null;
+  flagship_client_usage: string | null;
+  flagship_result_users: string | null;
+  flagship_tech_stack: string | null;
+  flagship_available_data: string | null;
+  flagship_uncertain_data: string | null;
+  flagship_out_of_scope: string | null;
+  flagship_competitors: string | null;
 };
 
 export type ProjectEditReferences = {

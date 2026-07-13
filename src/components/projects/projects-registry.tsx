@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { ProjectCard } from "@/components/projects/project-card";
@@ -22,6 +23,7 @@ type ProjectsRegistryProps = {
   csms: PersonReference[];
   directors: PersonReference[];
   industryUnits: ReferenceItem[];
+  canCreateProject?: boolean;
   initialFilters?: {
     statusId?: string;
     csmId?: string;
@@ -36,6 +38,7 @@ type ProjectsRegistryProps = {
 };
 
 export function ProjectsRegistry({
+  canCreateProject,
   csms,
   directors,
   flagshipStatuses,
@@ -265,6 +268,17 @@ export function ProjectsRegistry({
               <option value="archived">Только архив</option>
             </select>
           </label>
+
+          {canCreateProject ? (
+            <div className="flex min-w-0 items-end">
+              <Link
+                className="inline-flex h-11 w-full items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950"
+                href="/projects/new"
+              >
+                Добавить проект
+              </Link>
+            </div>
+          ) : null}
 
           <div className="flex min-w-0 items-end">
             <button
