@@ -1,5 +1,6 @@
 import { getProjectRegistryData } from "@/lib/supabase/project-registry";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getProjectQualityCategory } from "@/lib/project-registry/filters";
 import type {
   PersonReference,
   ProjectListItem,
@@ -108,7 +109,7 @@ export async function getPortfolioAnalyticsData(): Promise<PortfolioAnalyticsDat
 
   return {
     activeProjects,
-    totalProjects: registryData.projects.length,
+    totalProjects: activeProjects.length,
     statusSegments: buildReferenceSegments({
       projects: activeProjects,
       references: registryData.statuses,
@@ -499,40 +500,30 @@ function buildQualitySegments(projects: ProjectListItem[]): AnalyticsSegment[] {
       label: "Заполнено хорошо",
       color: "#ccefdc",
       count: 0,
+      href: "/projects?quality=good",
     },
     {
       key: "partial",
       label: "Заполнено частично",
       color: "#fde7b8",
       count: 0,
+      href: "/projects?quality=partial",
     },
     {
       key: "poor",
       label: "Много пустых полей",
       color: "#ffd7df",
       count: 0,
+      href: "/projects?quality=poor",
     },
   ];
 
   for (const project of projects) {
-    const filledCount = [
-      project.client,
-      project.project_name,
-      project.essence,
-      project.status_id,
-      project.industry_unit_id,
-      project.csm_id,
-      project.director_id,
-      project.next_step,
-    ].filter((value) => Boolean(value?.trim())).length;
+    const category = getProjectQualityCategory(project);
+    const bucket = buckets.find((item) => item.key === category);
 
-    // 7-8 of 8 key fields is good, 4-6 is partial, 0-3 needs attention.
-    if (filledCount >= 7) {
-      buckets[0].count += 1;
-    } else if (filledCount >= 4) {
-      buckets[1].count += 1;
-    } else {
-      buckets[2].count += 1;
+    if (bucket) {
+      bucket.count += 1;
     }
   }
 

@@ -135,6 +135,12 @@ To create a test user manually instead:
 
 Database schema changes live in `supabase/migrations`.
 
+Supabase migrations are manual unless a dedicated migration pipeline is added
+later. Vercel deploys application code only; it does not apply Supabase SQL
+migrations automatically. If a pull request adds a Supabase migration, apply it
+to the target Supabase database before merging/deploying code that depends on
+the new schema, or immediately after merge before users test production.
+
 The initial schema migration creates:
 
 - app profiles and roles;
@@ -166,6 +172,44 @@ set
 ```
 
 Replace `your-email@example.com` with the email you used to log in. Do not paste passwords or secret keys into SQL or chat.
+
+### Manual Supabase Hotfix: Flagship Project Fields
+
+If production shows a missing-column error such as
+`column projects.flagship_client_current_state does not exist`, apply the
+schema hotfix migration manually:
+
+1. Open Supabase Dashboard.
+2. Go to SQL Editor.
+3. Open
+   `supabase/migrations/20260713143000_ensure_flagship_project_fields.sql`.
+4. Paste the full SQL into a new query.
+5. Run the query once.
+6. Verify the required project columns exist:
+
+```sql
+select column_name
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'projects'
+  and column_name in (
+    'flagship_client_current_state',
+    'flagship_current_process',
+    'flagship_scope',
+    'flagship_client_usage',
+    'flagship_result_users',
+    'flagship_tech_stack',
+    'flagship_available_data',
+    'flagship_uncertain_data',
+    'flagship_out_of_scope',
+    'flagship_competitors'
+  )
+order by column_name;
+```
+
+The query should return all ten column names. The migration is idempotent: it
+uses `add column if not exists`, creates the project ID sequence if missing, and
+sets the `projects.external_id` default without rewriting existing project IDs.
 
 ## Project Registry
 

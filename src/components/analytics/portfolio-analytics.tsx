@@ -38,9 +38,9 @@ export function PortfolioAnalytics({ data }: PortfolioAnalyticsProps) {
           detail={`${getPercent(flagshipTotal, totalActiveProjects)}% активного портфеля`}
         />
         <SummaryCard
-          label="Всего в базе"
+          label="В аналитике"
           value={data.totalProjects}
-          detail="С учетом архивных проектов"
+          detail="Только активные проекты"
         />
       </div>
 
@@ -481,7 +481,7 @@ function DataQualityPanel({
       </div>
       <p className="mt-4 text-xs leading-5 text-slate-500">
         Порог: 7-8 заполненных полей — хорошо, 4-6 — частично, 0-3 — много
-        пустых полей. URL-фильтр качества можно добавить отдельным шагом.
+        пустых полей. Архивные проекты не учитываются.
       </p>
     </DownloadablePanel>
   );

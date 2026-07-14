@@ -47,6 +47,16 @@ type ProjectDetailRow = ProjectListRow & {
   flagship_problem_description: string | null;
   flagship_solution_description: string | null;
   flagship_ai_functionality: string | null;
+  flagship_client_current_state: string | null;
+  flagship_current_process: string | null;
+  flagship_scope: string | null;
+  flagship_client_usage: string | null;
+  flagship_result_users: string | null;
+  flagship_tech_stack: string | null;
+  flagship_available_data: string | null;
+  flagship_uncertain_data: string | null;
+  flagship_out_of_scope: string | null;
+  flagship_competitors: string | null;
   flagship_description_uploaded: boolean | null;
   flagship_passport_uploaded: boolean | null;
   flagship_innovation_level: ProjectDetail["flagship_innovation_level"];
@@ -103,6 +113,16 @@ function normalizeProjectDetail(row: ProjectDetailRow): ProjectDetail {
     flagship_problem_description: row.flagship_problem_description,
     flagship_solution_description: row.flagship_solution_description,
     flagship_ai_functionality: row.flagship_ai_functionality,
+    flagship_client_current_state: row.flagship_client_current_state,
+    flagship_current_process: row.flagship_current_process,
+    flagship_scope: row.flagship_scope,
+    flagship_client_usage: row.flagship_client_usage,
+    flagship_result_users: row.flagship_result_users,
+    flagship_tech_stack: row.flagship_tech_stack,
+    flagship_available_data: row.flagship_available_data,
+    flagship_uncertain_data: row.flagship_uncertain_data,
+    flagship_out_of_scope: row.flagship_out_of_scope,
+    flagship_competitors: row.flagship_competitors,
     flagship_description_uploaded:
       row.flagship_description_uploaded ?? false,
     flagship_passport_uploaded: row.flagship_passport_uploaded ?? false,
@@ -119,12 +139,38 @@ function normalizeProjectDetail(row: ProjectDetailRow): ProjectDetail {
 }
 
 function getSupabaseErrorMessage(error?: unknown) {
+  if (error) {
+    console.error("Supabase project registry query failed", error);
+  }
+
+  if (isMissingSchemaMigrationError(error)) {
+    return "База данных не обновлена: не применена migration для флагманских полей. Обратитесь к администратору.";
+  }
+
   const details =
     error && typeof error === "object" && "message" in error
       ? ` Причина: ${String(error.message)}`
       : "";
 
   return `Не удалось загрузить данные из Supabase. Проверьте RLS, профиль пользователя и доступ к таблицам.${details}`;
+}
+
+function isMissingSchemaMigrationError(error: unknown) {
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String(error.message).toLowerCase()
+      : "";
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String(error.code)
+      : "";
+
+  return (
+    code === "42703" ||
+    code === "PGRST204" ||
+    (message.includes("column") && message.includes("does not exist")) ||
+    (message.includes("schema cache") && message.includes("projects"))
+  );
 }
 
 export async function getProjectRegistryData(): Promise<ProjectRegistryData> {
@@ -250,6 +296,16 @@ export async function getProjectDetail(
         flagship_problem_description,
         flagship_solution_description,
         flagship_ai_functionality,
+        flagship_client_current_state,
+        flagship_current_process,
+        flagship_scope,
+        flagship_client_usage,
+        flagship_result_users,
+        flagship_tech_stack,
+        flagship_available_data,
+        flagship_uncertain_data,
+        flagship_out_of_scope,
+        flagship_competitors,
         flagship_description_uploaded,
         flagship_passport_uploaded,
         flagship_innovation_level,

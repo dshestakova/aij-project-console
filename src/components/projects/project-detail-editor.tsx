@@ -69,15 +69,103 @@ const fieldLabels: Record<string, string> = {
   is_archived: "Архив",
   is_flagship: "Флагман",
   flagship_status_id: "Статус флагмана",
-  flagship_problem_description: "Описание проблемы",
-  flagship_solution_description: "Описание решения",
-  flagship_ai_functionality: "Ключевой функционал ИИ",
   flagship_description_uploaded: "Описание загружено",
   flagship_passport_uploaded: "Паспорт загружен",
   flagship_innovation_level: "Инновационность",
   flagship_uploaded_to_prbr: "Загружен на ПРБР",
   flagship_approved_by_ca: "Одобрен ЦА",
+  flagship_client_current_state: "Что сейчас есть у клиента",
+  flagship_current_process: "Как выглядит текущий процесс",
+  flagship_scope: "Что именно дорабатываем / создаем",
+  flagship_client_usage: "Как и для чего клиент это использует",
+  flagship_result_users: "Кто будет пользоваться результатом",
+  flagship_tech_stack: "Технический стек",
+  flagship_available_data: "Какие данные доступны",
+  flagship_uncertain_data: "Какие данные пока под вопросом",
+  flagship_out_of_scope: "Что точно не делаем",
+  flagship_competitors: "Конкуренты",
 };
+
+type FlagshipPassportField = {
+  name: keyof Pick<
+    ProjectEditInput,
+    | "flagship_client_current_state"
+    | "flagship_current_process"
+    | "flagship_scope"
+    | "flagship_client_usage"
+    | "flagship_result_users"
+    | "flagship_tech_stack"
+    | "flagship_available_data"
+    | "flagship_uncertain_data"
+    | "flagship_out_of_scope"
+    | "flagship_competitors"
+  >;
+  label: string;
+  placeholder: string;
+};
+
+const flagshipPassportFields: FlagshipPassportField[] = [
+  {
+    name: "flagship_client_current_state",
+    label: "Что сейчас есть у клиента",
+    placeholder:
+      "Опишите текущую ситуацию у клиента: какие системы, процессы, команды или решения уже есть, что работает сейчас.",
+  },
+  {
+    name: "flagship_current_process",
+    label: "Как выглядит текущий процесс",
+    placeholder:
+      "Опишите текущий процесс: кто участвует, какие шаги проходят, сколько это занимает времени, людей или ресурсов.",
+  },
+  {
+    name: "flagship_scope",
+    label: "Что именно дорабатываем / создаем",
+    placeholder:
+      "Опишите, что именно будет создано или доработано в рамках проекта: модуль, агент, сервис, интеграция, аналитика, интерфейс.",
+  },
+  {
+    name: "flagship_client_usage",
+    label: "Как и для чего клиент это использует",
+    placeholder:
+      "Опишите пользовательский сценарий: как клиент будет применять результат в работе и какую задачу это помогает решать.",
+  },
+  {
+    name: "flagship_result_users",
+    label: "Кто будет пользоваться результатом",
+    placeholder:
+      "Укажите пользователей результата: роли, команды, подразделения, внутренние или внешние пользователи.",
+  },
+  {
+    name: "flagship_tech_stack",
+    label: "Технический стек",
+    placeholder:
+      "Укажите технологии и компоненты: LLM/GigaChat, RAG, агенты, API, базы данных, интеграции, frontend/backend, облако, BI и другие инструменты.",
+  },
+  {
+    name: "flagship_available_data",
+    label: "Какие данные доступны",
+    placeholder:
+      "Перечислите данные, которые уже есть или точно будут доступны: документы, таблицы, CRM, транзакции, логи, базы знаний, исторические данные.",
+  },
+  {
+    name: "flagship_uncertain_data",
+    label: "Какие данные пока под вопросом",
+    placeholder:
+      "Опишите данные, доступность или качество которых нужно уточнить: владельцы, доступы, формат, полнота, регулярность обновления.",
+  },
+  {
+    name: "flagship_out_of_scope",
+    label: "Что точно не делаем",
+    placeholder:
+      "Зафиксируйте границы проекта: какие функции, интеграции, процессы или ожидания не входят в текущий объем.",
+  },
+  {
+    name: "flagship_competitors",
+    label: "Конкуренты",
+    placeholder:
+      "По желанию: укажите похожие решения, внутренние альтернативы, внешних конкурентов или бенчмарки.",
+  },
+];
 
 export function ProjectDetailEditor({
   canEdit,
@@ -309,7 +397,7 @@ export function ProjectDetailEditor({
 
   return (
     <>
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-500">
@@ -328,7 +416,7 @@ export function ProjectDetailEditor({
             </p>
             {canEdit && !isEditing ? (
               <button
-                className="h-10 rounded-md bg-slate-950 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+                className="h-10 w-full rounded-md bg-slate-950 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 sm:w-auto"
                 onClick={() => {
                   setError(null);
                   setMessage(null);
@@ -445,61 +533,65 @@ function ProjectReadOnlyView({
   project: ProjectDetail;
 }) {
   return (
-    <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
-      <div className="flex flex-col gap-4">
-        <DetailBlock label="Суть проекта" value={project.essence} />
-        <DetailBlock label="Прогресс" value={project.progress} />
-        <DetailBlock label="Следующий шаг" value={project.next_step} />
-        <DetailBlock label="Комментарий" value={project.comment} />
-      </div>
+    <div className="flex min-w-0 flex-col gap-4">
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <DetailBlock label="Суть проекта" value={project.essence} />
+          <DetailBlock label="Прогресс" value={project.progress} />
+          <DetailBlock label="Следующий шаг" value={project.next_step} />
+          <DetailBlock label="Комментарий" value={project.comment} />
+        </div>
 
-      <aside className="flex flex-col gap-4">
-        <InfoCard
-          rows={[
-            ["Внешний ID", project.external_id],
-            ["Клиент", project.client],
-            ["Название проекта", project.project_name],
-            ["Основной статус", project.status?.name ?? "Без статуса"],
-            [
-              "Отраслевое управление",
-              project.industry_unit?.name ?? "Не указано",
-            ],
-            ["Обновлено", formatDateTime(project.updated_at)],
-          ]}
-          title="Паспорт проекта"
-        />
-        <FlagshipCard
-          approvedByCa={project.flagship_approved_by_ca}
-          descriptionUploaded={getProjectDescriptionUploaded(project)}
-          innovationLevel={project.flagship_innovation_level}
-          isFlagship={project.is_flagship}
-          status={project.flagship_status?.name}
-          uploadedToPrbr={project.flagship_uploaded_to_prbr}
-        />
-        <PassportProjectBlock
-          autofillStatus={autofillStatus}
-          currentPassport={currentPassport}
-          isAutofillBusy={isAutofillBusy}
-          isBusy={isPassportBusy}
-          onAutofillStart={onPassportAutofillStart}
-          onDownload={onPassportDownload}
-          passportUploaded={project.flagship_passport_uploaded}
-          passportError={passportError}
-          passportMessage={passportMessage}
-          variant="readonly"
-        />
-        <InfoCard
-          rows={[
-            ["Финансирование", project.funding],
-            ["Статус финансирования", project.funding_status],
-            ["Социальный", project.is_social ? "да" : "нет"],
-            ["CSM", project.csm?.full_name],
-            ["Директор", project.director?.full_name],
-          ]}
-          title="Ответственные и финансы"
-        />
-      </aside>
-    </section>
+        <aside className="min-w-0">
+          <InfoCard
+            rows={[
+              ["Внешний ID", project.external_id],
+              ["Клиент", project.client],
+              ["Название проекта", project.project_name],
+              ["Основной статус", project.status?.name ?? "Без статуса"],
+              [
+                "Отраслевое управление",
+                project.industry_unit?.name ?? "Не указано",
+              ],
+              ["Обновлено", formatDateTime(project.updated_at)],
+            ]}
+            title="Кратко"
+          />
+        </aside>
+      </section>
+
+      <FlagshipCard
+        approvedByCa={project.flagship_approved_by_ca}
+        descriptionUploaded={getProjectDescriptionUploaded(project)}
+        innovationLevel={project.flagship_innovation_level}
+        isFlagship={project.is_flagship}
+        status={project.flagship_status?.name}
+        uploadedToPrbr={project.flagship_uploaded_to_prbr}
+      />
+      {project.is_flagship ? <FlagshipPassportDetails project={project} /> : null}
+      <PassportProjectBlock
+        autofillStatus={autofillStatus}
+        currentPassport={currentPassport}
+        isAutofillBusy={isAutofillBusy}
+        isBusy={isPassportBusy}
+        onAutofillStart={onPassportAutofillStart}
+        onDownload={onPassportDownload}
+        passportUploaded={project.flagship_passport_uploaded}
+        passportError={passportError}
+        passportMessage={passportMessage}
+        variant="readonly"
+      />
+      <InfoCard
+        rows={[
+          ["Финансирование", project.funding],
+          ["Статус финансирования", project.funding_status],
+          ["Социальный", project.is_social ? "да" : "нет"],
+          ["CSM", project.csm?.full_name],
+          ["Директор", project.director?.full_name],
+        ]}
+        title="Ответственные и финансы"
+      />
+    </div>
   );
 }
 
@@ -712,31 +804,16 @@ function ProjectEditForm({
               variant="edit"
             />
 
-            <div className="grid gap-4 lg:grid-cols-3">
-              <TextareaField
-                label="Описание проблемы"
-                onChange={(value) =>
-                  onChange("flagship_problem_description", value)
-                }
-                placeholder="Какую бизнес-проблему решает проект?"
-                value={form.flagship_problem_description}
-              />
-              <TextareaField
-                label="Описание решения"
-                onChange={(value) =>
-                  onChange("flagship_solution_description", value)
-                }
-                placeholder="Как именно проблема решается с помощью AI?"
-                value={form.flagship_solution_description}
-              />
-              <TextareaField
-                label="Ключевой функционал ИИ"
-                onChange={(value) =>
-                  onChange("flagship_ai_functionality", value)
-                }
-                placeholder="Какие ИИ-функции используются: предсказание, классификация, генерация и т.д."
-                value={form.flagship_ai_functionality}
-              />
+            <div className="grid gap-4 lg:grid-cols-2">
+              {flagshipPassportFields.map((field) => (
+                <TextareaField
+                  key={field.name}
+                  label={field.label}
+                  onChange={(value) => onChange(field.name, value)}
+                  placeholder={field.placeholder}
+                  value={form[field.name]}
+                />
+              ))}
             </div>
           </div>
         ) : (
@@ -772,7 +849,7 @@ function ProjectChangeHistory({ changes }: { changes: ProjectChangeItem[] }) {
   const groups = groupChanges(changes);
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-lg font-semibold text-slate-950">
         История изменений
       </h3>
@@ -827,7 +904,7 @@ function DetailBlock({
   value: string | null;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-sm font-semibold uppercase text-slate-400">{label}</h3>
       <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
         {getDisplayValue(value)}
@@ -864,6 +941,28 @@ function FlagshipCard({
   }
 
   return <InfoCard rows={rows} title="Флагманский проект" />;
+}
+
+function FlagshipPassportDetails({ project }: { project: ProjectDetail }) {
+  return (
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-950">
+        Описание флагманского проекта
+      </h3>
+      <dl className="mt-4 grid gap-4 lg:grid-cols-2">
+        {flagshipPassportFields.map((field) => (
+          <div className="rounded-md border border-slate-100 bg-slate-50 p-3" key={field.name}>
+            <dt className="text-xs font-medium uppercase text-slate-400">
+              {field.label}
+            </dt>
+            <dd className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+              {getDisplayValue(project[field.name])}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
 }
 
 function PassportProjectBlock({
@@ -985,7 +1084,7 @@ function PassportProjectBlock({
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <button
-          className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+          className="h-10 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 sm:w-auto"
           disabled={!currentPassport || isBusy}
           onClick={onDownload}
           type="button"
@@ -994,7 +1093,7 @@ function PassportProjectBlock({
         </button>
         {variant === "edit" ? (
           <button
-            className="h-10 rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:bg-indigo-50 disabled:text-indigo-300"
+            className="h-10 w-full rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:bg-indigo-50 disabled:text-indigo-300 sm:w-auto"
             disabled={isBusy || isAutofillBusy}
             onClick={onAutofillStart}
             type="button"
@@ -1003,7 +1102,7 @@ function PassportProjectBlock({
           </button>
         ) : null}
         {variant === "edit" ? (
-          <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950">
+          <label className="inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 sm:w-auto">
             <span>
               {isBusy ? "Загружаем..." : "Загрузить обновленный паспорт"}
             </span>
@@ -1038,7 +1137,7 @@ function InfoCard({
   title: string;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-lg font-semibold text-slate-950">{title}</h3>
       <dl className="mt-4 flex flex-col gap-3">
         {rows.map(([label, value]) => (
@@ -1092,10 +1191,10 @@ function TextareaField({
   value: string;
 }) {
   return (
-    <label className="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <label className="block min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <span className="text-sm font-semibold text-slate-700">{label}</span>
       <textarea
-        className="mt-3 min-h-32 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
+        className="mt-3 min-h-32 w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         value={value}
@@ -1204,7 +1303,7 @@ function CollapsibleSection({
 }) {
   return (
     <details
-      className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+      className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
       open={defaultOpen}
     >
       <summary className="cursor-pointer select-none text-lg font-semibold text-slate-950 marker:text-slate-400">
@@ -1256,9 +1355,17 @@ function getInitialForm(project: ProjectDetail): ProjectEditInput {
     is_archived: project.is_archived,
     is_flagship: project.is_flagship,
     flagship_status_id: project.flagship_status_id ?? "",
-    flagship_problem_description: project.flagship_problem_description ?? "",
-    flagship_solution_description: project.flagship_solution_description ?? "",
-    flagship_ai_functionality: project.flagship_ai_functionality ?? "",
+    flagship_client_current_state:
+      project.flagship_client_current_state ?? "",
+    flagship_current_process: project.flagship_current_process ?? "",
+    flagship_scope: project.flagship_scope ?? "",
+    flagship_client_usage: project.flagship_client_usage ?? "",
+    flagship_result_users: project.flagship_result_users ?? "",
+    flagship_tech_stack: project.flagship_tech_stack ?? "",
+    flagship_available_data: project.flagship_available_data ?? "",
+    flagship_uncertain_data: project.flagship_uncertain_data ?? "",
+    flagship_out_of_scope: project.flagship_out_of_scope ?? "",
+    flagship_competitors: project.flagship_competitors ?? "",
     flagship_passport_uploaded: project.flagship_passport_uploaded,
     flagship_innovation_level: project.flagship_innovation_level ?? "",
     flagship_uploaded_to_prbr: project.flagship_uploaded_to_prbr,
@@ -1268,17 +1375,27 @@ function getInitialForm(project: ProjectDetail): ProjectEditInput {
 
 function getIsDescriptionUploaded(form: ProjectEditInput) {
   return (
-    form.flagship_problem_description.trim().length > 0 &&
-    form.flagship_solution_description.trim().length > 0 &&
-    form.flagship_ai_functionality.trim().length > 0
+    form.flagship_client_current_state.trim().length > 0 &&
+    form.flagship_current_process.trim().length > 0 &&
+    form.flagship_scope.trim().length > 0 &&
+    form.flagship_client_usage.trim().length > 0 &&
+    form.flagship_result_users.trim().length > 0 &&
+    form.flagship_tech_stack.trim().length > 0 &&
+    form.flagship_available_data.trim().length > 0 &&
+    form.flagship_out_of_scope.trim().length > 0
   );
 }
 
 function getProjectDescriptionUploaded(project: ProjectDetail) {
   return (
-    Boolean(project.flagship_problem_description?.trim()) &&
-    Boolean(project.flagship_solution_description?.trim()) &&
-    Boolean(project.flagship_ai_functionality?.trim())
+    Boolean(project.flagship_client_current_state?.trim()) &&
+    Boolean(project.flagship_current_process?.trim()) &&
+    Boolean(project.flagship_scope?.trim()) &&
+    Boolean(project.flagship_client_usage?.trim()) &&
+    Boolean(project.flagship_result_users?.trim()) &&
+    Boolean(project.flagship_tech_stack?.trim()) &&
+    Boolean(project.flagship_available_data?.trim()) &&
+    Boolean(project.flagship_out_of_scope?.trim())
   );
 }
 

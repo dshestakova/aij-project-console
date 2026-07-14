@@ -14,7 +14,8 @@ type UserHeaderProps = {
     | "/projects"
     | "/analytics"
     | "/ai-analyst"
-    | "/admin/users";
+    | "/admin/users"
+    | "/admin/references";
   role?: UserRole | null;
 };
 
@@ -30,7 +31,11 @@ export function UserHeader({ activePath, email, role }: UserHeaderProps) {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const visibleNavigationItems =
     role === "admin"
-      ? [...navigationItems, { href: "/admin/users", label: "Пользователи" }]
+      ? [
+          ...navigationItems,
+          { href: "/admin/users", label: "Пользователи" },
+          { href: "/admin/references", label: "Справочники" },
+        ]
       : navigationItems;
 
   async function handleSignOut() {
@@ -47,8 +52,8 @@ export function UserHeader({ activePath, email, role }: UserHeaderProps) {
 
   return (
     <header className="flex flex-col gap-4 border-b border-slate-200 pb-4">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
+      <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
           <p className="text-sm font-medium text-slate-500">
             AIJ Project Console
           </p>
@@ -56,7 +61,7 @@ export function UserHeader({ activePath, email, role }: UserHeaderProps) {
             Реестр AIJ-проектов
           </h1>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
           <div className="min-w-0 text-left sm:text-right">
             <p className="truncate text-sm font-medium text-slate-800">
               {email}
@@ -64,7 +69,7 @@ export function UserHeader({ activePath, email, role }: UserHeaderProps) {
             <p className="text-xs text-slate-500">пользователь Supabase</p>
           </div>
           <button
-            className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-400"
+            className="h-10 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-400 sm:w-auto"
             disabled={isSigningOut}
             onClick={handleSignOut}
             type="button"

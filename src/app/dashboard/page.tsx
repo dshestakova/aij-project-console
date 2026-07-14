@@ -8,6 +8,7 @@ import {
   getChartTone,
   getIndustryUnitColorKey,
 } from "@/lib/project-registry/colors";
+import { isArchivedProject } from "@/lib/project-registry/filters";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProjectRegistryData } from "@/lib/supabase/project-registry";
 import { getCurrentProfile } from "@/lib/supabase/profiles";
@@ -29,25 +30,26 @@ export default async function DashboardPage() {
     await getProjectRegistryData();
   const currentProfile = await getCurrentProfile();
 
-  const activeProjects = projects.filter((project) => !project.is_archived);
-  const archivedProjects = projects.filter((project) => project.is_archived);
+  const activeProjects = projects.filter((project) => !isArchivedProject(project));
+  const archivedProjects = projects.filter(isArchivedProject);
   const flagshipProjects = activeProjects.filter((project) => project.is_flagship);
+  const socialProjects = activeProjects.filter((project) => project.is_social);
 
   const summaryCards = [
     {
-      label: "Всего проектов",
-      value: projects.length,
-      detail: "Все записи в Supabase",
-    },
-    {
-      label: "Активные",
+      label: "Активные проекты",
       value: activeProjects.length,
-      detail: "Архив скрыт по умолчанию",
+      detail: "Без архивных записей",
     },
     {
       label: "Флагманские",
       value: flagshipProjects.length,
       detail: "Активные проекты с флагманским признаком",
+    },
+    {
+      label: "Социальные",
+      value: socialProjects.length,
+      detail: "Активные проекты с социальным маркером",
     },
     {
       label: "Архив",
@@ -81,7 +83,7 @@ export default async function DashboardPage() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {summaryCards.map((card) => (
               <article
-                className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+                className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
                 key={card.label}
               >
                 <p className="text-sm font-medium text-slate-500">
@@ -95,7 +97,7 @@ export default async function DashboardPage() {
             ))}
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid min-w-0 gap-4 xl:grid-cols-2">
             <DistributionPanel
               description="Активные проекты по текущим статусам. Пустые значения показаны отдельно."
               emptyLabel="Активных проектов пока нет."
@@ -112,14 +114,14 @@ export default async function DashboardPage() {
             />
           </div>
 
-          {projects.length === 0 ? (
+          {activeProjects.length === 0 ? (
             <section className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
               <p className="text-base font-semibold text-slate-950">
-                Проекты еще не импортированы
+                Активных проектов пока нет
               </p>
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                База данных и справочники готовы. После импорта здесь появятся
-                метрики, распределения и карточки проектов.
+                Архивные записи не попадают в dashboard-метрики и последние
+                обновления.
               </p>
               <Link
                 className="mt-5 inline-flex h-10 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white shadow-sm"
@@ -129,7 +131,7 @@ export default async function DashboardPage() {
               </Link>
             </section>
           ) : (
-            <section className="flex flex-col gap-4">
+            <section className="flex min-w-0 flex-col gap-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-slate-950">
@@ -146,7 +148,7 @@ export default async function DashboardPage() {
                   Все проекты
                 </Link>
               </div>
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid min-w-0 gap-4 xl:grid-cols-2">
                 {activeProjects.slice(0, 4).map((project) => (
                   <ProjectCard key={project.id} project={project} />
                 ))}
@@ -339,7 +341,7 @@ function DistributionPanel({
   const visibleItems = items.filter((item) => item.count > 0);
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">{title}</h2>

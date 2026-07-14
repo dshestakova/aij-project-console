@@ -32,9 +32,16 @@ export type ProjectEditInput = {
   is_archived: boolean;
   is_flagship: boolean;
   flagship_status_id: string;
-  flagship_problem_description: string;
-  flagship_solution_description: string;
-  flagship_ai_functionality: string;
+  flagship_client_current_state: string;
+  flagship_current_process: string;
+  flagship_scope: string;
+  flagship_client_usage: string;
+  flagship_result_users: string;
+  flagship_tech_stack: string;
+  flagship_available_data: string;
+  flagship_uncertain_data: string;
+  flagship_out_of_scope: string;
+  flagship_competitors: string;
   flagship_passport_uploaded: boolean;
   flagship_innovation_level: string;
   flagship_uploaded_to_prbr: boolean;
@@ -78,6 +85,11 @@ export type PassportAutofillStatusResult = {
 
 export type PassportAutofillFinalizeResult = ProjectEditResult;
 
+export type ProjectCreateResult = ProjectEditResult & {
+  projectId?: string;
+  externalId?: string;
+};
+
 type EditableProjectRow = {
   id: string;
   external_id: string;
@@ -100,6 +112,16 @@ type EditableProjectRow = {
   flagship_problem_description: string | null;
   flagship_solution_description: string | null;
   flagship_ai_functionality: string | null;
+  flagship_client_current_state: string | null;
+  flagship_current_process: string | null;
+  flagship_scope: string | null;
+  flagship_client_usage: string | null;
+  flagship_result_users: string | null;
+  flagship_tech_stack: string | null;
+  flagship_available_data: string | null;
+  flagship_uncertain_data: string | null;
+  flagship_out_of_scope: string | null;
+  flagship_competitors: string | null;
   flagship_description_uploaded: boolean | null;
   flagship_passport_uploaded: boolean | null;
   flagship_innovation_level: ProjectDetail["flagship_innovation_level"];
@@ -113,33 +135,118 @@ type ChangeDraft = {
   new_value: string | null;
 };
 
+type ProjectEditorProfile = {
+  id: string;
+  role: string;
+};
+
+export async function createProjectAction(
+  input: ProjectEditInput,
+): Promise<ProjectCreateResult> {
+  const supabase = await createServerSupabaseClient();
+  const editorResult = await getProjectEditorProfile();
+
+  if (!editorResult.ok) {
+    return editorResult;
+  }
+
+  const normalized = normalizeInput(input);
+  const insertPayload = {
+    client: normalized.client,
+    project_name: normalized.project_name,
+    status_id: normalized.status_id,
+    csm_id: normalized.csm_id,
+    director_id: normalized.director_id,
+    industry_unit_id: normalized.industry_unit_id,
+    essence: normalized.essence,
+    progress: normalized.progress,
+    next_step: normalized.next_step,
+    funding_status: normalized.funding_status,
+    funding: normalized.funding,
+    is_social: normalized.is_social,
+    comment: normalized.comment,
+    is_archived: normalized.is_archived,
+    is_flagship: normalized.is_flagship,
+    flagship_status_id: normalized.flagship_status_id,
+    flagship_description_uploaded: normalized.flagship_description_uploaded,
+    flagship_passport_uploaded: normalized.flagship_passport_uploaded,
+    flagship_innovation_level: normalized.flagship_innovation_level,
+    flagship_uploaded_to_prbr: normalized.flagship_uploaded_to_prbr,
+    flagship_approved_by_ca: normalized.flagship_approved_by_ca,
+    flagship_client_current_state: normalized.flagship_client_current_state,
+    flagship_current_process: normalized.flagship_current_process,
+    flagship_scope: normalized.flagship_scope,
+    flagship_client_usage: normalized.flagship_client_usage,
+    flagship_result_users: normalized.flagship_result_users,
+    flagship_tech_stack: normalized.flagship_tech_stack,
+    flagship_available_data: normalized.flagship_available_data,
+    flagship_uncertain_data: normalized.flagship_uncertain_data,
+    flagship_out_of_scope: normalized.flagship_out_of_scope,
+    flagship_competitors: normalized.flagship_competitors,
+  };
+
+  const { data: createdProject, error: createError } = await supabase
+    .from("projects")
+    .insert(insertPayload)
+    .select("id, external_id")
+    .single();
+
+  if (createError || !createdProject) {
+    const isDuplicate =
+      createError && "code" in createError && createError.code === "23505";
+
+    return {
+      ok: false,
+      message: isDuplicate
+        ? "Не удалось создать уникальный ID проекта. Повторите сохранение."
+        : `Не удалось создать проект: ${getActionErrorMessage(createError)}`,
+    };
+  }
+
+  const { error: changesError } = await supabase
+    .from("project_changes")
+    .insert({
+      project_id: createdProject.id,
+      changed_by: editorResult.profile.id,
+      field_name: "Создан проект",
+      old_value: null,
+      new_value: [createdProject.external_id, normalized.project_name]
+        .filter(Boolean)
+        .join(" — "),
+      source: "web",
+    });
+
+  if (changesError) {
+    return {
+      ok: true,
+      message:
+        "Проект создан, но историю создания записать не удалось. Проверьте RLS для project_changes.",
+      projectId: createdProject.id,
+      externalId: createdProject.external_id,
+    };
+  }
+
+  revalidatePath("/projects");
+  revalidatePath("/dashboard");
+  revalidatePath("/analytics");
+
+  return {
+    ok: true,
+    message: `Проект создан. ID проекта: ${createdProject.external_id}.`,
+    projectId: createdProject.id,
+    externalId: createdProject.external_id,
+  };
+}
+
 export async function updateProjectAction(
   projectId: string,
   input: ProjectEditInput,
 ): Promise<ProjectEditResult> {
   const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const editorResult = await getProjectEditorProfile();
 
-  if (!user) {
-    return {
-      ok: false,
-      message: "Нужно войти в систему, чтобы редактировать проект.",
-    };
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profileError || !profile || !["admin", "editor"].includes(profile.role)) {
-    return {
-      ok: false,
-      message: "У вас нет прав на редактирование проекта.",
-    };
+  if (!editorResult.ok) {
+    return editorResult;
   }
 
   const { data: original, error: originalError } = await supabase
@@ -167,6 +274,16 @@ export async function updateProjectAction(
         flagship_problem_description,
         flagship_solution_description,
         flagship_ai_functionality,
+        flagship_client_current_state,
+        flagship_current_process,
+        flagship_scope,
+        flagship_client_usage,
+        flagship_result_users,
+        flagship_tech_stack,
+        flagship_available_data,
+        flagship_uncertain_data,
+        flagship_out_of_scope,
+        flagship_competitors,
         flagship_description_uploaded,
         flagship_passport_uploaded,
         flagship_innovation_level,
@@ -268,19 +385,54 @@ export async function updateProjectAction(
     displayReference(nextFlagshipStatusId, referenceLabels.flagshipStatuses),
   );
   addChange(
-    "flagship_problem_description",
-    "flagship_problem_description",
-    normalized.flagship_problem_description,
+    "Что сейчас есть у клиента",
+    "flagship_client_current_state",
+    normalized.flagship_client_current_state,
   );
   addChange(
-    "flagship_solution_description",
-    "flagship_solution_description",
-    normalized.flagship_solution_description,
+    "Как выглядит текущий процесс",
+    "flagship_current_process",
+    normalized.flagship_current_process,
   );
   addChange(
-    "flagship_ai_functionality",
-    "flagship_ai_functionality",
-    normalized.flagship_ai_functionality,
+    "Что именно дорабатываем / создаем",
+    "flagship_scope",
+    normalized.flagship_scope,
+  );
+  addChange(
+    "Как и для чего клиент это использует",
+    "flagship_client_usage",
+    normalized.flagship_client_usage,
+  );
+  addChange(
+    "Кто будет пользоваться результатом",
+    "flagship_result_users",
+    normalized.flagship_result_users,
+  );
+  addChange(
+    "Технический стек",
+    "flagship_tech_stack",
+    normalized.flagship_tech_stack,
+  );
+  addChange(
+    "Какие данные доступны",
+    "flagship_available_data",
+    normalized.flagship_available_data,
+  );
+  addChange(
+    "Какие данные пока под вопросом",
+    "flagship_uncertain_data",
+    normalized.flagship_uncertain_data,
+  );
+  addChange(
+    "Что точно не делаем",
+    "flagship_out_of_scope",
+    normalized.flagship_out_of_scope,
+  );
+  addChange(
+    "Конкуренты",
+    "flagship_competitors",
+    normalized.flagship_competitors,
   );
   addChange(
     "flagship_description_uploaded",
@@ -340,7 +492,7 @@ export async function updateProjectAction(
   const { error: changesError } = await supabase.from("project_changes").insert(
     changes.map((change) => ({
       project_id: projectId,
-      changed_by: profile.id,
+      changed_by: editorResult.profile.id,
       field_name: change.field_name,
       old_value: change.old_value,
       new_value: change.new_value,
@@ -877,18 +1029,23 @@ function normalizeInput(input: ProjectEditInput): EditableProjectRow {
     is_archived: input.is_archived,
     is_flagship: isFlagship,
     flagship_status_id: isFlagship ? nullableId(input.flagship_status_id) : null,
-    flagship_problem_description: nullableText(
-      input.flagship_problem_description,
+    flagship_problem_description: null,
+    flagship_solution_description: null,
+    flagship_ai_functionality: null,
+    flagship_client_current_state: nullableText(
+      input.flagship_client_current_state,
     ),
-    flagship_solution_description: nullableText(
-      input.flagship_solution_description,
-    ),
-    flagship_ai_functionality: nullableText(input.flagship_ai_functionality),
+    flagship_current_process: nullableText(input.flagship_current_process),
+    flagship_scope: nullableText(input.flagship_scope),
+    flagship_client_usage: nullableText(input.flagship_client_usage),
+    flagship_result_users: nullableText(input.flagship_result_users),
+    flagship_tech_stack: nullableText(input.flagship_tech_stack),
+    flagship_available_data: nullableText(input.flagship_available_data),
+    flagship_uncertain_data: nullableText(input.flagship_uncertain_data),
+    flagship_out_of_scope: nullableText(input.flagship_out_of_scope),
+    flagship_competitors: nullableText(input.flagship_competitors),
     flagship_description_uploaded:
-      isFlagship &&
-      Boolean(input.flagship_problem_description.trim()) &&
-      Boolean(input.flagship_solution_description.trim()) &&
-      Boolean(input.flagship_ai_functionality.trim()),
+      isFlagship && hasCompleteFlagshipDescription(input),
     flagship_passport_uploaded: input.flagship_passport_uploaded,
     flagship_innovation_level: normalizeInnovationLevel(
       input.flagship_innovation_level,
@@ -896,6 +1053,57 @@ function normalizeInput(input: ProjectEditInput): EditableProjectRow {
     flagship_uploaded_to_prbr: input.flagship_uploaded_to_prbr,
     flagship_approved_by_ca: input.flagship_approved_by_ca,
   };
+}
+
+async function getProjectEditorProfile(): Promise<
+  | { ok: true; profile: ProjectEditorProfile }
+  | { ok: false; message: string }
+> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      message: "Нужно войти в систему, чтобы создавать или редактировать проект.",
+    };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile || !["admin", "editor"].includes(profile.role)) {
+    return {
+      ok: false,
+      message: "У вас нет прав на создание или редактирование проекта.",
+    };
+  }
+
+  return {
+    ok: true,
+    profile: {
+      id: profile.id,
+      role: profile.role,
+    },
+  };
+}
+
+function hasCompleteFlagshipDescription(input: ProjectEditInput) {
+  return (
+    input.flagship_client_current_state.trim().length > 0 &&
+    input.flagship_current_process.trim().length > 0 &&
+    input.flagship_scope.trim().length > 0 &&
+    input.flagship_client_usage.trim().length > 0 &&
+    input.flagship_result_users.trim().length > 0 &&
+    input.flagship_tech_stack.trim().length > 0 &&
+    input.flagship_available_data.trim().length > 0 &&
+    input.flagship_out_of_scope.trim().length > 0
+  );
 }
 
 function nullableText(value: string) {

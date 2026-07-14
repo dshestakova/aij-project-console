@@ -1,8 +1,15 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { ProjectCard } from "@/components/projects/project-card";
+import {
+  filterProjectRegistryProjects,
+  type ArchiveMode,
+  type BooleanFilter,
+  type QualityFilter,
+} from "@/lib/project-registry/filters";
 import type {
   PersonReference,
   ProjectListItem,
@@ -16,26 +23,22 @@ type ProjectsRegistryProps = {
   csms: PersonReference[];
   directors: PersonReference[];
   industryUnits: ReferenceItem[];
+  canCreateProject?: boolean;
   initialFilters?: {
     statusId?: string;
     csmId?: string;
     directorId?: string;
     industryUnitId?: string;
     flagshipStatusId?: string;
-    flagship?: string;
-    archiveMode?: string;
+    flagship?: BooleanFilter;
+    archiveMode?: ArchiveMode;
+    social?: BooleanFilter;
+    quality?: QualityFilter;
   };
 };
 
-const innovationOptions = [
-  { value: "all", label: "Все" },
-  { value: "высокий", label: "Высокий" },
-  { value: "средний", label: "Средний" },
-  { value: "низкий", label: "Низкий" },
-  { value: "__none", label: "Не указано" },
-] as const;
-
 export function ProjectsRegistry({
+  canCreateProject,
   csms,
   directors,
   flagshipStatuses,
@@ -56,118 +59,27 @@ export function ProjectsRegistry({
   const [flagshipStatusId, setFlagshipStatusId] = useState(
     initialFilters?.flagshipStatusId ?? "all",
   );
-  const [innovationLevel, setInnovationLevel] = useState("all");
   const [flagship, setFlagship] = useState(initialFilters?.flagship ?? "all");
   const [archiveMode, setArchiveMode] = useState(
     initialFilters?.archiveMode ?? "active",
   );
+  const [social, setSocial] = useState(initialFilters?.social ?? "all");
+  const [quality, setQuality] = useState(initialFilters?.quality ?? "all");
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const filteredProjects = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    return projects.filter((project) => {
-      if (archiveMode === "active" && project.is_archived) {
-        return false;
-      }
-
-      if (archiveMode === "archived" && !project.is_archived) {
-        return false;
-      }
-
-      if (statusId === "__none" && project.status) {
-        return false;
-      }
-
-      if (
-        statusId !== "all" &&
-        statusId !== "__none" &&
-        project.status?.id !== statusId
-      ) {
-        return false;
-      }
-
-      if (csmId === "__none" && project.csm) {
-        return false;
-      }
-
-      if (csmId !== "all" && csmId !== "__none" && project.csm?.id !== csmId) {
-        return false;
-      }
-
-      if (directorId === "__none" && project.director) {
-        return false;
-      }
-
-      if (
-        directorId !== "all" &&
-        directorId !== "__none" &&
-        project.director?.id !== directorId
-      ) {
-        return false;
-      }
-
-      if (industryUnitId === "__none" && project.industry_unit) {
-        return false;
-      }
-
-      if (
-        industryUnitId !== "all" &&
-        industryUnitId !== "__none" &&
-        project.industry_unit?.id !== industryUnitId
-      ) {
-        return false;
-      }
-
-      if (flagshipStatusId === "__none" && project.flagship_status) {
-        return false;
-      }
-
-      if (
-        flagshipStatusId !== "all" &&
-        flagshipStatusId !== "__none" &&
-        project.flagship_status?.id !== flagshipStatusId
-      ) {
-        return false;
-      }
-
-      if (flagship === "yes" && !project.is_flagship) {
-        return false;
-      }
-
-      if (flagship === "no" && project.is_flagship) {
-        return false;
-      }
-
-      if (innovationLevel === "__none" && project.flagship_innovation_level) {
-        return false;
-      }
-
-      if (
-        innovationLevel !== "all" &&
-        innovationLevel !== "__none" &&
-        project.flagship_innovation_level !== innovationLevel
-      ) {
-        return false;
-      }
-
-      if (!normalizedQuery) {
-        return true;
-      }
-
-      return [
-        project.external_id,
-        project.client,
-        project.project_name,
-        project.next_step,
-        project.status?.name,
-        project.csm?.full_name,
-        project.director?.full_name,
-        project.industry_unit?.name,
-      ]
-        .filter(Boolean)
-        .some((value) => value?.toLowerCase().includes(normalizedQuery));
+    return filterProjectRegistryProjects(projects, {
+      archiveMode,
+      csmId,
+      directorId,
+      flagship,
+      flagshipStatusId,
+      industryUnitId,
+      quality,
+      query,
+      social,
+      statusId,
     });
   }, [
     archiveMode,
@@ -176,9 +88,10 @@ export function ProjectsRegistry({
     flagship,
     flagshipStatusId,
     industryUnitId,
-    innovationLevel,
     projects,
+    quality,
     query,
+    social,
     statusId,
   ]);
 
@@ -190,21 +103,10 @@ export function ProjectsRegistry({
     directorId !== "all" ||
     industryUnitId !== "all" ||
     flagshipStatusId !== "all" ||
-    innovationLevel !== "all" ||
     flagship !== "all" ||
+    social !== "all" ||
+    quality !== "all" ||
     archiveMode !== "active";
-
-  function resetFilters() {
-    setQuery("");
-    setStatusId("all");
-    setCsmId("all");
-    setDirectorId("all");
-    setIndustryUnitId("all");
-    setFlagshipStatusId("all");
-    setInnovationLevel("all");
-    setFlagship("all");
-    setArchiveMode("active");
-  }
 
   async function handleExport() {
     setIsExporting(true);
@@ -252,8 +154,8 @@ export function ProjectsRegistry({
   return (
     <section className="flex flex-col gap-4">
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <label className="block md:col-span-2 xl:col-span-4">
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+          <label className="block min-w-0 sm:col-span-2">
             <span className="text-sm font-medium text-slate-700">Поиск</span>
             <input
               className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
@@ -270,13 +172,6 @@ export function ProjectsRegistry({
             options={statuses}
             missingLabel="Без статуса"
             value={statusId}
-          />
-          <FilterSelect
-            label="Отраслевое управление"
-            onChange={setIndustryUnitId}
-            options={industryUnits}
-            missingLabel="Без отраслевого управления"
-            value={industryUnitId}
           />
           <FilterSelect
             label="CSM"
@@ -299,86 +194,114 @@ export function ProjectsRegistry({
             value={directorId}
           />
           <FilterSelect
+            label="Отраслевое управление"
+            onChange={setIndustryUnitId}
+            options={industryUnits}
+            missingLabel="Без отраслевого управления"
+            value={industryUnitId}
+          />
+          <FilterSelect
             label="Статус флагмана"
             onChange={setFlagshipStatusId}
             options={flagshipStatuses}
             missingLabel="Без статуса"
             value={flagshipStatusId}
           />
-          <FilterSelect
-            label="Инновационность"
-            onChange={setInnovationLevel}
-            options={innovationOptions.map((option) => ({
-              id: option.value,
-              name: option.label,
-            }))}
-            value={innovationLevel}
-          />
-        </div>
+          <label className="block min-w-0">
+            <span className="text-sm font-medium text-slate-700">Флагман</span>
+            <select
+              className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
+              onChange={(event) =>
+                setFlagship(event.target.value as BooleanFilter)
+              }
+              value={flagship}
+            >
+              <option value="all">Все</option>
+              <option value="yes">Да</option>
+              <option value="no">Нет</option>
+            </select>
+          </label>
+          <label className="block min-w-0">
+            <span className="text-sm font-medium text-slate-700">
+              Социальный
+            </span>
+            <select
+              className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
+              onChange={(event) =>
+                setSocial(event.target.value as BooleanFilter)
+              }
+              value={social}
+            >
+              <option value="all">Все</option>
+              <option value="yes">Да</option>
+              <option value="no">Нет</option>
+            </select>
+          </label>
+          <label className="block min-w-0">
+            <span className="text-sm font-medium text-slate-700">
+              Качество
+            </span>
+            <select
+              className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
+              onChange={(event) =>
+                setQuality(event.target.value as QualityFilter)
+              }
+              value={quality}
+            >
+              <option value="all">Все</option>
+              <option value="good">Хорошо</option>
+              <option value="partial">Частично</option>
+              <option value="poor">Много пустых</option>
+            </select>
+          </label>
+          <label className="block min-w-0">
+            <span className="text-sm font-medium text-slate-700">Архив</span>
+            <select
+              className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
+              onChange={(event) =>
+                setArchiveMode(event.target.value as ArchiveMode)
+              }
+              value={archiveMode}
+            >
+              <option value="active">Только активные</option>
+              <option value="all">Показать все</option>
+              <option value="archived">Только архив</option>
+            </select>
+          </label>
 
-        <div className="mt-4 border-t border-slate-100 pt-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex flex-wrap items-end gap-6">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                  Флагман
-                </p>
-                <SegmentedControl
-                  className="mt-2"
-                  onChange={setFlagship}
-                  options={[
-                    { value: "all", label: "Все" },
-                    { value: "yes", label: "Да" },
-                    { value: "no", label: "Нет" },
-                  ]}
-                  value={flagship}
-                />
-              </div>
-
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                  Архив
-                </p>
-                <SegmentedControl
-                  className="mt-2"
-                  onChange={setArchiveMode}
-                  options={[
-                    { value: "active", label: "Активные" },
-                    { value: "all", label: "Все" },
-                    { value: "archived", label: "Архив" },
-                  ]}
-                  value={archiveMode}
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {hasActiveFilters ? (
-                <ToolbarButton onClick={resetFilters} variant="secondary">
-                  Сбросить
-                </ToolbarButton>
-              ) : null}
-              <ToolbarButton
-                disabled={isExporting}
-                onClick={handleExport}
-                variant="primary"
+          {canCreateProject ? (
+            <div className="flex min-w-0 items-end">
+              <Link
+                className="inline-flex h-11 w-full items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950"
+                href="/projects/new"
               >
-                {isExporting ? "Готовим файл..." : "Скачать реестр"}
-              </ToolbarButton>
+                Добавить проект
+              </Link>
             </div>
-          </div>
+          ) : null}
 
-          <p className="mt-3 text-sm text-slate-500">
-            Показано{" "}
-            <span className="font-semibold text-slate-950">
-              {filteredProjects.length}
-            </span>{" "}
-            из {projects.length}
-          </p>
+          <div className="flex min-w-0 items-end">
+            <button
+              className="h-11 w-full rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              disabled={isExporting}
+              onClick={handleExport}
+              type="button"
+            >
+              {isExporting ? "Готовим файл..." : "Скачать реестр"}
+            </button>
+          </div>
         </div>
 
         {exportError ? (
           <p className="mt-3 text-sm text-rose-700">{exportError}</p>
+        ) : null}
+
+        {archiveMode !== "active" ? (
+          <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {archiveMode === "archived"
+              ? "Показаны только архивные проекты."
+              : "Показаны активные и архивные проекты."}
+          </p>
         ) : null}
       </div>
 
@@ -428,7 +351,7 @@ function FilterSelect({
   value: string;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="text-sm font-medium text-slate-700">{label}</span>
       <select
         className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
@@ -444,75 +367,6 @@ function FilterSelect({
         ))}
       </select>
     </label>
-  );
-}
-
-function ToolbarButton({
-  children,
-  disabled,
-  onClick,
-  variant,
-}: {
-  children: ReactNode;
-  disabled?: boolean;
-  onClick?: () => void;
-  variant: "primary" | "secondary";
-}) {
-  const baseClassName =
-    "h-11 rounded-md px-4 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed";
-  const variantClassName =
-    variant === "primary"
-      ? "bg-slate-950 text-white hover:bg-slate-800 disabled:bg-slate-300"
-      : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-950";
-
-  return (
-    <button
-      className={`${baseClassName} ${variantClassName}`}
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-}
-
-function SegmentedControl({
-  className,
-  onChange,
-  options,
-  value,
-}: {
-  className?: string;
-  onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
-  value: string;
-}) {
-  return (
-    <div
-      className={`grid h-11 w-80 grid-cols-3 rounded-md border border-slate-200 bg-slate-50 p-1 ${className ?? ""}`}
-      role="group"
-    >
-      {options.map((option) => {
-        const isActive = value === option.value;
-
-        return (
-          <button
-            aria-pressed={isActive}
-            className={`rounded-[5px] text-sm font-medium transition ${
-              isActive
-                ? "bg-white text-slate-950 shadow-sm"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-            key={option.value}
-            onClick={() => onChange(option.value)}
-            type="button"
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
