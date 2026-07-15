@@ -179,6 +179,8 @@ export function ProjectDetailEditor({
   const [passportMessage, setPassportMessage] = useState<string | null>(null);
   const [passportError, setPassportError] = useState<string | null>(null);
   const [isPassportBusy, setIsPassportBusy] = useState(false);
+  const [documentError, setDocumentError] = useState<string | null>(null);
+  const [isDocumentBusy, setIsDocumentBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function updateField<K extends keyof ProjectEditInput>(
@@ -287,6 +289,35 @@ export function ProjectDetailEditor({
     }
   }
 
+  async function handleDocumentDownload() {
+    setDocumentError(null);
+    setIsDocumentBusy(true);
+
+    try {
+      const response = await fetch(`/api/projects/${project.id}/document`);
+
+      if (!response.ok) {
+        throw new Error("download_failed");
+      }
+
+      const blob = await response.blob();
+      const filename = getDownloadFilename(response.headers);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setDocumentError("Не удалось скачать документ проекта. Попробуйте позже.");
+    } finally {
+      setIsDocumentBusy(false);
+    }
+  }
+
   return (
     <>
       <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -306,6 +337,14 @@ export function ProjectDetailEditor({
             <p className="text-sm text-slate-500">
               Обновлено {formatDateTime(project.updated_at)}
             </p>
+            <button
+              className="h-10 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 sm:w-auto"
+              disabled={isDocumentBusy}
+              onClick={handleDocumentDownload}
+              type="button"
+            >
+              {isDocumentBusy ? "Готовим документ..." : "Скачать документ"}
+            </button>
             {canEdit && !isEditing ? (
               <button
                 className="h-10 w-full rounded-md bg-slate-950 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 sm:w-auto"
@@ -363,6 +402,12 @@ export function ProjectDetailEditor({
       {error ? (
         <section className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
           {error}
+        </section>
+      ) : null}
+
+      {documentError ? (
+        <section className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          {documentError}
         </section>
       ) : null}
 
@@ -1293,6 +1338,22 @@ function getSafeFileName(fileName: string) {
     .slice(0, 80);
 
   return `${baseName || "passport"}${extension}`;
+}
+
+function getDownloadFilename(headers: Headers) {
+  const disposition = headers.get("content-disposition");
+  const encodedMatch = disposition?.match(/filename\*=UTF-8''([^;]+)/i);
+  const quotedMatch = disposition?.match(/filename="([^"]+)"/i);
+
+  if (encodedMatch?.[1]) {
+    try {
+      return decodeURIComponent(encodedMatch[1]);
+    } catch {
+      return encodedMatch[1];
+    }
+  }
+
+  return quotedMatch?.[1] ?? "project-document.docx";
 }
 
 function transliterateCharacter(character: string) {
