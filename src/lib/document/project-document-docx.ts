@@ -1,12 +1,7 @@
 import { formatDateTime, getDisplayValue } from "@/lib/project-registry/format";
-import type {
-  ProjectChangeItem,
-  ProjectDetail,
-  ProjectFileItem,
-} from "@/types/project-registry";
+import type { ProjectDetail, ProjectFileItem } from "@/types/project-registry";
 
 type ProjectDocumentInput = {
-  changes: ProjectChangeItem[];
   currentPassport: ProjectFileItem | null;
   project: ProjectDetail;
 };
@@ -26,48 +21,11 @@ const flagshipTextFields: Array<[string, keyof ProjectDetail]> = [
   ["Конкуренты", "flagship_competitors"],
 ];
 
-const fieldLabels: Record<string, string> = {
-  external_id: "ID проекта",
-  client: "Клиент",
-  project_name: "Название проекта",
-  status_id: "Статус",
-  csm_id: "CSM",
-  director_id: "Директор",
-  industry_unit_id: "Отраслевое управление",
-  essence: "Суть проекта",
-  progress: "Прогресс",
-  next_step: "Следующий шаг",
-  funding_status: "Статус финансирования",
-  funding: "Финансирование",
-  is_social: "Социальный",
-  comment: "Комментарий",
-  is_archived: "Архив",
-  is_flagship: "Флагман",
-  flagship_status_id: "Статус флагмана",
-  flagship_description_uploaded: "Описание загружено",
-  flagship_passport_uploaded: "Паспорт загружен",
-  flagship_innovation_level: "Инновационность",
-  flagship_uploaded_to_prbr: "Загружен на ПРБР",
-  flagship_approved_by_ca: "Одобрен ЦА",
-  flagship_client_current_state: "Что сейчас есть у клиента",
-  flagship_current_process: "Как выглядит текущий процесс",
-  flagship_scope: "Что именно дорабатываем / создаем",
-  flagship_client_usage: "Как и для чего клиент это использует",
-  flagship_result_users: "Кто будет пользоваться результатом",
-  flagship_tech_stack: "Технический стек",
-  flagship_available_data: "Какие данные доступны",
-  flagship_uncertain_data: "Какие данные пока под вопросом",
-  flagship_out_of_scope: "Что точно не делаем",
-  flagship_competitors: "Конкуренты",
-  "Создан проект": "Создан проект",
-};
-
 export function buildProjectDocumentDocx({
-  changes,
   currentPassport,
   project,
 }: ProjectDocumentInput) {
-  const documentXml = buildDocumentXml(project, currentPassport, changes);
+  const documentXml = buildDocumentXml(project, currentPassport);
   const now = new Date().toISOString();
 
   return createZip([
@@ -115,7 +73,6 @@ export function getProjectDocumentFilename(project: ProjectDetail) {
 function buildDocumentXml(
   project: ProjectDetail,
   currentPassport: ProjectFileItem | null,
-  changes: ProjectChangeItem[],
 ) {
   const documentParts = [
     paragraph("Проектный документ", "Title"),
@@ -179,8 +136,6 @@ function buildDocumentXml(
         currentPassport?.profile?.display_name ?? currentPassport?.profile?.email,
       ],
     ]),
-    heading("История изменений"),
-    buildHistory(changes),
     sectionProperties(),
   ];
 
@@ -188,24 +143,6 @@ function buildDocumentXml(
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>${documentParts.join("")}</w:body>
 </w:document>`;
-}
-
-function buildHistory(changes: ProjectChangeItem[]) {
-  if (changes.length === 0) {
-    return paragraph("История изменений пока пустая.");
-  }
-
-  return table(
-    changes.slice(0, 30).map((change) => [
-      formatDateTime(change.changed_at),
-      [
-        change.profile?.display_name ??
-          change.profile?.email ??
-          "Пользователь",
-        getFieldLabel(change.field_name),
-      ].join(" — "),
-    ]),
-  );
 }
 
 function heading(text: string, style = "Heading2") {
@@ -276,10 +213,6 @@ function display(value: string | null | undefined) {
 
 function bool(value: boolean | null | undefined) {
   return value ? "да" : "нет";
-}
-
-function getFieldLabel(fieldName: string) {
-  return fieldLabels[fieldName] ?? fieldName;
 }
 
 function safeFilenamePart(value: string) {

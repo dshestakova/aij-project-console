@@ -27,7 +27,7 @@ export async function GET(_request: Request, { params }: ProjectDocumentRoutePro
     );
   }
 
-  const { changes, currentPassport, errorMessage, project } =
+  const { currentPassport, errorMessage, project } =
     await getProjectDetailPageData(id);
 
   if (errorMessage) {
@@ -48,7 +48,6 @@ export async function GET(_request: Request, { params }: ProjectDocumentRoutePro
   }
 
   const document = buildProjectDocumentDocx({
-    changes,
     currentPassport,
     project,
   });
