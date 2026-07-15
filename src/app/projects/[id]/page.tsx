@@ -58,6 +58,7 @@ export default async function ProjectDetailPage({
               canEdit={canEdit}
               changes={changes}
               currentPassport={currentPassport}
+              draftOwnerKey={currentProfile?.id ?? user?.email ?? "anonymous"}
               project={project}
               references={references}
             />

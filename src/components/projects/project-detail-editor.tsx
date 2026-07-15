@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import {
   getPassportDownloadUrlAction,
@@ -10,6 +10,7 @@ import {
   updateProjectAction,
 } from "@/app/projects/[id]/actions";
 import { Badge } from "@/components/projects/badge";
+import { useProjectFormDraft } from "@/hooks/use-project-form-draft";
 import { getIndustryUnitColorKey } from "@/lib/project-registry/colors";
 import { formatDateTime, getDisplayValue } from "@/lib/project-registry/format";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
@@ -26,6 +27,7 @@ type ProjectDetailEditorProps = {
   canEdit: boolean;
   changes: ProjectChangeItem[];
   currentPassport: ProjectFileItem | null;
+  draftOwnerKey: string;
   project: ProjectDetail;
   references: ProjectEditReferences;
 };
@@ -168,12 +170,14 @@ export function ProjectDetailEditor({
   canEdit,
   changes,
   currentPassport,
+  draftOwnerKey,
   project,
   references,
 }: ProjectDetailEditorProps) {
   const router = useRouter();
+  const initialForm = useMemo(() => getInitialForm(project), [project]);
   const [isEditing, setIsEditing] = useState(false);
-  const [form, setForm] = useState(() => getInitialForm(project));
+  const [form, setForm] = useState<ProjectEditInput>(initialForm);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [passportMessage, setPassportMessage] = useState<string | null>(null);
@@ -182,6 +186,19 @@ export function ProjectDetailEditor({
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [isDocumentBusy, setIsDocumentBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const {
+    clearDraft,
+    discardDraft,
+    draftStatus,
+    hasPendingDraft,
+    hasUnsavedChanges,
+    restoreDraft,
+  } = useProjectFormDraft({
+    enabled: isEditing,
+    form,
+    initialForm,
+    storageKey: `aij-project-draft:${draftOwnerKey}:${project.id}`,
+  });
 
   function updateField<K extends keyof ProjectEditInput>(
     field: K,
@@ -191,9 +208,17 @@ export function ProjectDetailEditor({
   }
 
   function handleCancel() {
-    setForm(getInitialForm(project));
+    if (
+      hasUnsavedChanges &&
+      !window.confirm("Есть несохраненные изменения. Уйти без сохранения?")
+    ) {
+      return;
+    }
+
+    setForm(initialForm);
     setError(null);
     setMessage(null);
+    clearDraft();
     setIsEditing(false);
   }
 
@@ -211,6 +236,7 @@ export function ProjectDetailEditor({
       }
 
       setMessage(result.message);
+      clearDraft();
       setIsEditing(false);
       router.refresh();
     });
@@ -351,7 +377,7 @@ export function ProjectDetailEditor({
                 onClick={() => {
                   setError(null);
                   setMessage(null);
-                  setForm(getInitialForm(project));
+                  setForm(initialForm);
                   setIsEditing(true);
                 }}
                 type="button"
@@ -415,12 +441,16 @@ export function ProjectDetailEditor({
         <ProjectEditForm
           currentPassport={currentPassport}
           form={form}
+          draftStatus={draftStatus}
+          hasPendingDraft={hasPendingDraft}
           isPending={isPending}
           isPassportBusy={isPassportBusy}
           onCancel={handleCancel}
           onChange={updateField}
+          onDiscardDraft={discardDraft}
           onPassportDownload={handlePassportDownload}
           onPassportUpload={handlePassportUpload}
+          onRestoreDraft={() => restoreDraft(setForm)}
           onSubmit={handleSubmit}
           passportError={passportError}
           passportMessage={passportMessage}
@@ -519,20 +549,26 @@ function ProjectReadOnlyView({
 
 function ProjectEditForm({
   currentPassport,
+  draftStatus,
   form,
+  hasPendingDraft,
   isPending,
   isPassportBusy,
   onCancel,
   onChange,
+  onDiscardDraft,
   onPassportDownload,
   onPassportUpload,
+  onRestoreDraft,
   onSubmit,
   passportError,
   passportMessage,
   references,
 }: {
   currentPassport: ProjectFileItem | null;
+  draftStatus: string | null;
   form: ProjectEditInput;
+  hasPendingDraft: boolean;
   isPending: boolean;
   isPassportBusy: boolean;
   onCancel: () => void;
@@ -540,8 +576,10 @@ function ProjectEditForm({
     field: K,
     value: ProjectEditInput[K],
   ) => void;
+  onDiscardDraft: () => void;
   onPassportDownload: () => void;
   onPassportUpload: (file: File) => void;
+  onRestoreDraft: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   passportError: string | null;
   passportMessage: string | null;
@@ -551,6 +589,37 @@ function ProjectEditForm({
 
   return (
     <form className="flex flex-col gap-4" onSubmit={onSubmit}>
+      {hasPendingDraft ? (
+        <section className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold">Найден несохраненный черновик</p>
+            <p className="mt-1 text-amber-800">
+              Можно восстановить локальные изменения или удалить черновик.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              className="h-10 rounded-md bg-amber-900 px-4 text-sm font-medium text-white transition hover:bg-amber-800"
+              onClick={onRestoreDraft}
+              type="button"
+            >
+              Восстановить
+            </button>
+            <button
+              className="h-10 rounded-md border border-amber-300 bg-white px-4 text-sm font-medium text-amber-900 transition hover:border-amber-400"
+              onClick={onDiscardDraft}
+              type="button"
+            >
+              Удалить черновик
+            </button>
+          </div>
+        </section>
+      ) : draftStatus ? (
+        <p className="self-start rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-500">
+          {draftStatus}
+        </p>
+      ) : null}
+
       <CollapsibleSection defaultOpen title="Основная информация">
         <div className="grid gap-4 lg:grid-cols-3">
           <TextField
