@@ -126,8 +126,12 @@ const initialForm: ProjectEditInput = {
   flagship_uncertain_data: "",
   flagship_out_of_scope: "",
   flagship_competitors: "",
+  flagship_problem_description: "",
+  flagship_solution_description: "",
+  flagship_ai_functionality: "",
   flagship_passport_uploaded: false,
   flagship_innovation_level: "",
+  flagship_innovation_reason: "",
   flagship_uploaded_to_prbr: false,
   flagship_approved_by_ca: false,
 };

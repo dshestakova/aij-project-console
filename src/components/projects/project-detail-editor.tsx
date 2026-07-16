@@ -72,8 +72,12 @@ const fieldLabels: Record<string, string> = {
   flagship_description_uploaded: "Описание загружено",
   flagship_passport_uploaded: "Паспорт загружен",
   flagship_innovation_level: "Инновационность",
+  flagship_innovation_reason: "Обоснование оценки Innovate",
   flagship_uploaded_to_prbr: "Загружен на ПРБР",
   flagship_approved_by_ca: "Одобрен ЦА",
+  flagship_problem_description: "Описание проблемы",
+  flagship_solution_description: "Предлагаемое решение",
+  flagship_ai_functionality: "Функциональность GenAI / AI",
   flagship_client_current_state: "Что сейчас есть у клиента",
   flagship_current_process: "Как выглядит текущий процесс",
   flagship_scope: "Что именно дорабатываем / создаем",
@@ -85,6 +89,35 @@ const fieldLabels: Record<string, string> = {
   flagship_out_of_scope: "Что точно не делаем",
   flagship_competitors: "Конкуренты",
 };
+
+type PassportNarrativeField = {
+  name: keyof Pick<
+    ProjectEditInput,
+    | "flagship_problem_description"
+    | "flagship_solution_description"
+    | "flagship_ai_functionality"
+  >;
+  label: string;
+  placeholder: string;
+};
+
+const passportNarrativeFields: PassportNarrativeField[] = [
+  {
+    name: "flagship_problem_description",
+    label: "Описание проблемы",
+    placeholder: "Какая проблема у клиента решается проектом.",
+  },
+  {
+    name: "flagship_solution_description",
+    label: "Предлагаемое решение",
+    placeholder: "Как именно решается проблема.",
+  },
+  {
+    name: "flagship_ai_functionality",
+    label: "Функциональность GenAI / AI",
+    placeholder: "Что делает AI-контур: вход, обработка, выход, участие человека.",
+  },
+];
 
 type FlagshipPassportField = {
   name: keyof Pick<
@@ -183,6 +216,7 @@ export function ProjectDetailEditor({
   const [passportError, setPassportError] = useState<string | null>(null);
   const [isPassportBusy, setIsPassportBusy] = useState(false);
   const [autofillStatus, setAutofillStatus] = useState<string | null>(null);
+  const [showAiPassportWarning, setShowAiPassportWarning] = useState(false);
   const [remoteAutofillId, setRemoteAutofillId] = useState<string | null>(null);
   const [isAutofillBusy, setIsAutofillBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -359,13 +393,38 @@ export function ProjectDetailEditor({
         }
 
         setPassportMessage(finalizeResult.message);
+        setShowAiPassportWarning(true);
         setAutofillStatus("Автозаполнение завершено.");
+        setRemoteAutofillId(null);
+        router.refresh();
+        return;
+      } else if (statusResult.status === "escalated") {
+        setAutofillStatus(
+          "High не достигнут — сохраняем Excel и отмечаем «требуется помощь»...",
+        );
+        setIsAutofillBusy(true);
+        const finalizeResult = await finalizePassportAutofillAction(
+          project.id,
+          runId,
+        );
+        setIsAutofillBusy(false);
+
+        if (!finalizeResult.ok) {
+          setPassportError(finalizeResult.message);
+          setAutofillStatus(null);
+          setRemoteAutofillId(null);
+          return;
+        }
+
+        setPassportMessage(finalizeResult.message);
+        setPassportError(null);
+        setShowAiPassportWarning(true);
+        setAutofillStatus("Требуется помощь аналитика.");
         setRemoteAutofillId(null);
         router.refresh();
         return;
       } else if (
         statusResult.status === "failed" ||
-        statusResult.status === "escalated" ||
         statusResult.status === "revise"
       ) {
         const details = statusResult.projectState?.error
@@ -490,6 +549,9 @@ export function ProjectDetailEditor({
           passportMessage={passportMessage}
           autofillStatus={autofillStatus}
           isAutofillBusy={isAutofillBusy}
+          showAiPassportWarning={
+            showAiPassportWarning || hasAiGeneratedPassportContent(project)
+          }
           references={references}
         />
       ) : (
@@ -502,6 +564,9 @@ export function ProjectDetailEditor({
           passportMessage={passportMessage}
           autofillStatus={autofillStatus}
           isAutofillBusy={isAutofillBusy}
+          showAiPassportWarning={
+            showAiPassportWarning || hasAiGeneratedPassportContent(project)
+          }
           project={project}
         />
       )}
@@ -521,6 +586,7 @@ function ProjectReadOnlyView({
   passportError,
   passportMessage,
   project,
+  showAiPassportWarning,
 }: {
   autofillStatus: string | null;
   currentPassport: ProjectFileItem | null;
@@ -531,6 +597,7 @@ function ProjectReadOnlyView({
   passportError: string | null;
   passportMessage: string | null;
   project: ProjectDetail;
+  showAiPassportWarning: boolean;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -568,6 +635,9 @@ function ProjectReadOnlyView({
         status={project.flagship_status?.name}
         uploadedToPrbr={project.flagship_uploaded_to_prbr}
       />
+      {showAiPassportWarning ? <AiGeneratedPassportWarning /> : null}
+      <InnovateAssessmentBlock project={project} />
+      <PassportNarrativeDetails project={project} />
       {project.is_flagship ? <FlagshipPassportDetails project={project} /> : null}
       <PassportProjectBlock
         autofillStatus={autofillStatus}
@@ -611,6 +681,7 @@ function ProjectEditForm({
   passportError,
   passportMessage,
   references,
+  showAiPassportWarning,
 }: {
   autofillStatus: string | null;
   currentPassport: ProjectFileItem | null;
@@ -630,6 +701,7 @@ function ProjectEditForm({
   passportError: string | null;
   passportMessage: string | null;
   references: ProjectEditReferences;
+  showAiPassportWarning: boolean;
 }) {
   const isDescriptionUploaded = getIsDescriptionUploaded(form);
 
@@ -804,6 +876,35 @@ function ProjectEditForm({
               variant="edit"
             />
 
+            {showAiPassportWarning ? <AiGeneratedPassportWarning /> : null}
+
+            <div className="rounded-md border border-slate-100 bg-slate-50 p-4">
+              <h4 className="text-sm font-semibold text-slate-950">
+                Поля паспорта
+              </h4>
+              <p className="mt-1 text-xs text-slate-500">
+                Заполняются автозаполнением при любом уровне инновационности.
+              </p>
+              <div className="mt-3 grid gap-4">
+                {passportNarrativeFields.map((field) => (
+                  <TextareaField
+                    key={field.name}
+                    label={field.label}
+                    onChange={(value) => onChange(field.name, value)}
+                    placeholder={field.placeholder}
+                    value={form[field.name]}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <TextareaField
+              label="Обоснование оценки Innovate"
+              onChange={(value) => onChange("flagship_innovation_reason", value)}
+              placeholder="Почему Innovate поставил текущий уровень. Заполняется автоматически."
+              value={form.flagship_innovation_reason}
+            />
+
             <div className="grid gap-4 lg:grid-cols-2">
               {flagshipPassportFields.map((field) => (
                 <TextareaField
@@ -961,6 +1062,92 @@ function FlagshipPassportDetails({ project }: { project: ProjectDetail }) {
           </div>
         ))}
       </dl>
+    </section>
+  );
+}
+
+function AiGeneratedPassportWarning() {
+  return (
+    <section
+      className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
+      role="status"
+    >
+      <p className="font-semibold">Внимание: сгенерировано ИИ</p>
+      <p className="mt-1 text-amber-900/90">
+        Поля паспорта и обоснование Innovate заполнены автоматически. Проверьте
+        факты, формулировки и ограничения перед подачей на AIJ.
+      </p>
+    </section>
+  );
+}
+
+function hasAiGeneratedPassportContent(project: ProjectDetail) {
+  return Boolean(
+    project.flagship_innovation_reason?.trim() ||
+      (project.flagship_passport_uploaded &&
+        project.flagship_innovation_level &&
+        project.flagship_problem_description?.trim()),
+  );
+}
+
+function PassportNarrativeDetails({ project }: { project: ProjectDetail }) {
+  const hasContent = passportNarrativeFields.some((field) =>
+    Boolean(project[field.name]?.trim()),
+  );
+  if (!hasContent) {
+    return null;
+  }
+
+  return (
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-950">Поля паспорта</h3>
+      <p className="mt-1 text-sm text-slate-500">
+        Результат автозаполнения — показывается при любом уровне инновационности.
+      </p>
+      <dl className="mt-4 flex flex-col gap-4">
+        {passportNarrativeFields.map((field) => (
+          <div
+            className="rounded-md border border-slate-100 bg-slate-50 p-3"
+            key={field.name}
+          >
+            <dt className="text-xs font-medium uppercase text-slate-400">
+              {field.label}
+            </dt>
+            <dd className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+              {getDisplayValue(project[field.name])}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function InnovateAssessmentBlock({ project }: { project: ProjectDetail }) {
+  const reason = project.flagship_innovation_reason?.trim() ?? "";
+  const level = project.flagship_innovation_level;
+  const needsHelp = project.flagship_status?.name === "требуется помощь";
+
+  if (!level && !reason && !needsHelp) {
+    return null;
+  }
+
+  return (
+    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-lg font-semibold text-slate-950">Оценка Innovate</h3>
+        {level ? <Badge>{level}</Badge> : null}
+        {needsHelp ? <Badge colorKey="amber">требуется помощь</Badge> : null}
+      </div>
+      {reason ? (
+        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+          {reason}
+        </p>
+      ) : (
+        <p className="mt-3 text-sm text-slate-500">
+          Обоснование оценки пока не заполнено.
+        </p>
+      )}
     </section>
   );
 }
@@ -1366,8 +1553,12 @@ function getInitialForm(project: ProjectDetail): ProjectEditInput {
     flagship_uncertain_data: project.flagship_uncertain_data ?? "",
     flagship_out_of_scope: project.flagship_out_of_scope ?? "",
     flagship_competitors: project.flagship_competitors ?? "",
+    flagship_problem_description: project.flagship_problem_description ?? "",
+    flagship_solution_description: project.flagship_solution_description ?? "",
+    flagship_ai_functionality: project.flagship_ai_functionality ?? "",
     flagship_passport_uploaded: project.flagship_passport_uploaded,
     flagship_innovation_level: project.flagship_innovation_level ?? "",
+    flagship_innovation_reason: project.flagship_innovation_reason ?? "",
     flagship_uploaded_to_prbr: project.flagship_uploaded_to_prbr,
     flagship_approved_by_ca: project.flagship_approved_by_ca,
   };

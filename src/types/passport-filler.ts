@@ -15,6 +15,9 @@ export type PassportFillerProjectInput = {
   analogs: string;
   client_effect: string;
   sber_effect: string;
+  current_process: string;
+  client_usage: string;
+  tech_stack: string;
   raw_source_text: string;
 };
 
@@ -45,6 +48,10 @@ export type PassportFillerProjectState = {
   final_assessment?: {
     rating?: string;
     rating_reason?: string;
+    recommendations?: string;
+    csm_argument?: string;
+    analogues?: Array<Record<string, unknown>>;
+    path_to_high?: string[];
   } | null;
   error?: string | null;
   passport_xlsx_path?: string | null;

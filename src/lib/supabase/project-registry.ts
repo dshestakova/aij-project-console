@@ -57,6 +57,7 @@ type ProjectDetailRow = ProjectListRow & {
   flagship_uncertain_data: string | null;
   flagship_out_of_scope: string | null;
   flagship_competitors: string | null;
+  flagship_innovation_reason: string | null;
   flagship_description_uploaded: boolean | null;
   flagship_passport_uploaded: boolean | null;
   flagship_innovation_level: ProjectDetail["flagship_innovation_level"];
@@ -123,6 +124,7 @@ function normalizeProjectDetail(row: ProjectDetailRow): ProjectDetail {
     flagship_uncertain_data: row.flagship_uncertain_data,
     flagship_out_of_scope: row.flagship_out_of_scope,
     flagship_competitors: row.flagship_competitors,
+    flagship_innovation_reason: row.flagship_innovation_reason,
     flagship_description_uploaded:
       row.flagship_description_uploaded ?? false,
     flagship_passport_uploaded: row.flagship_passport_uploaded ?? false,
@@ -309,6 +311,7 @@ export async function getProjectDetail(
         flagship_description_uploaded,
         flagship_passport_uploaded,
         flagship_innovation_level,
+        flagship_innovation_reason,
         flagship_uploaded_to_prbr,
         flagship_approved_by_ca,
         csm_id,

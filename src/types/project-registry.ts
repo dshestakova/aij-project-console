@@ -84,6 +84,7 @@ export type ProjectDetail = ProjectListItem & {
   flagship_uncertain_data: string | null;
   flagship_out_of_scope: string | null;
   flagship_competitors: string | null;
+  flagship_innovation_reason: string | null;
 };
 
 export type ProjectEditReferences = {

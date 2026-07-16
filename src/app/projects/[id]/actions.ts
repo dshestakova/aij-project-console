@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { PassportFillerClient } from "@/lib/passport-filler/client";
 import {
+  formatInnovateAssessmentReason,
   mapPassportFillerRatingToInnovationLevel,
   mapProjectToPassportFillerInput,
 } from "@/lib/passport-filler/mappers";
@@ -42,8 +43,12 @@ export type ProjectEditInput = {
   flagship_uncertain_data: string;
   flagship_out_of_scope: string;
   flagship_competitors: string;
+  flagship_problem_description: string;
+  flagship_solution_description: string;
+  flagship_ai_functionality: string;
   flagship_passport_uploaded: boolean;
   flagship_innovation_level: string;
+  flagship_innovation_reason: string;
   flagship_uploaded_to_prbr: boolean;
   flagship_approved_by_ca: boolean;
 };
@@ -125,6 +130,7 @@ type EditableProjectRow = {
   flagship_description_uploaded: boolean | null;
   flagship_passport_uploaded: boolean | null;
   flagship_innovation_level: ProjectDetail["flagship_innovation_level"];
+  flagship_innovation_reason: string | null;
   flagship_uploaded_to_prbr: boolean | null;
   flagship_approved_by_ca: boolean | null;
 };
@@ -171,8 +177,12 @@ export async function createProjectAction(
     flagship_description_uploaded: normalized.flagship_description_uploaded,
     flagship_passport_uploaded: normalized.flagship_passport_uploaded,
     flagship_innovation_level: normalized.flagship_innovation_level,
+    flagship_innovation_reason: normalized.flagship_innovation_reason,
     flagship_uploaded_to_prbr: normalized.flagship_uploaded_to_prbr,
     flagship_approved_by_ca: normalized.flagship_approved_by_ca,
+    flagship_problem_description: normalized.flagship_problem_description,
+    flagship_solution_description: normalized.flagship_solution_description,
+    flagship_ai_functionality: normalized.flagship_ai_functionality,
     flagship_client_current_state: normalized.flagship_client_current_state,
     flagship_current_process: normalized.flagship_current_process,
     flagship_scope: normalized.flagship_scope,
@@ -287,6 +297,7 @@ export async function updateProjectAction(
         flagship_description_uploaded,
         flagship_passport_uploaded,
         flagship_innovation_level,
+        flagship_innovation_reason,
         flagship_uploaded_to_prbr,
         flagship_approved_by_ca
       `,
@@ -385,6 +396,21 @@ export async function updateProjectAction(
     displayReference(nextFlagshipStatusId, referenceLabels.flagshipStatuses),
   );
   addChange(
+    "Описание проблемы",
+    "flagship_problem_description",
+    normalized.flagship_problem_description,
+  );
+  addChange(
+    "Предлагаемое решение",
+    "flagship_solution_description",
+    normalized.flagship_solution_description,
+  );
+  addChange(
+    "Функциональность GenAI / AI",
+    "flagship_ai_functionality",
+    normalized.flagship_ai_functionality,
+  );
+  addChange(
     "Что сейчас есть у клиента",
     "flagship_client_current_state",
     normalized.flagship_client_current_state,
@@ -448,6 +474,11 @@ export async function updateProjectAction(
     "flagship_innovation_level",
     "flagship_innovation_level",
     normalized.flagship_innovation_level,
+  );
+  addChange(
+    "Обоснование оценки Innovate",
+    "flagship_innovation_reason",
+    normalized.flagship_innovation_reason,
   );
   addChange(
     "flagship_uploaded_to_prbr",
@@ -736,7 +767,7 @@ export async function finalizePassportAutofillAction(
     const client = new PassportFillerClient();
     const state = await client.getProject(remoteProjectId.trim());
 
-    if (state.status !== "completed") {
+    if (state.status !== "completed" && state.status !== "escalated") {
       return {
         ok: false,
         message: `Нельзя завершить автозаполнение. Текущий статус: ${state.status}.`,
@@ -747,8 +778,30 @@ export async function finalizePassportAutofillAction(
     const arrayBuffer = await passportBlob.arrayBuffer();
     const bytes = Buffer.from(arrayBuffer);
     const now = Date.now();
-    const fileName = `passport-autofill-${remoteProjectId.trim()}.xlsx`;
-    const storagePath = `projects/${projectId}/passport/${now}-${fileName}`;
+    const needsHelp = state.status === "escalated";
+    const projectTitle =
+      state.working?.project_name?.trim() ||
+      state.source?.project_name?.trim() ||
+      "проекта";
+    const safeTitle =
+      projectTitle
+        .replace(/[\[\]"']/g, "")
+        .replace(/[<>:"/\\|?*]/g, " ")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .join("_")
+        .slice(0, 120) || "проекта";
+    // Отображаемое имя может быть с кириллицей; ключ в Storage — только ASCII.
+    const fileName = `Паспорт_${safeTitle}.xlsx`;
+    const asciiTitle =
+      safeTitle
+        .normalize("NFKD")
+        .replace(/[^\x00-\x7F]/g, "")
+        .replace(/[^\w.-]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 120) || "project";
+    const storagePath = `projects/${projectId}/passport/${now}-Passport_${asciiTitle}.xlsx`;
 
     const { error: uploadError } = await supabase.storage
       .from("project-files")
@@ -779,7 +832,9 @@ export async function finalizePassportAutofillAction(
         size_bytes: bytes.byteLength,
       },
       source: "passport_filler",
-      changeNewValueWhenAlreadyUploaded: "Паспорт обновлен автозаполнением",
+      changeNewValueWhenAlreadyUploaded: needsHelp
+        ? "Паспорт сохранён: требуется помощь (High не достигнут)"
+        : "Паспорт обновлен автозаполнением",
     });
 
     if (!registerResult.ok) {
@@ -797,6 +852,16 @@ export async function finalizePassportAutofillAction(
     revalidatePath(`/projects/${projectId}`);
     revalidatePath("/projects");
     revalidatePath("/dashboard");
+
+    const rating = state.final_assessment?.rating ?? "—";
+    if (needsHelp) {
+      return {
+        ok: true,
+        message:
+          `Требуется помощь: High не достигнут (оценка ${rating}). ` +
+          "Excel с паспортом и полным ответом Innovate сохранён в файлы проекта.",
+      };
+    }
 
     return {
       ok: true,
@@ -1029,9 +1094,13 @@ function normalizeInput(input: ProjectEditInput): EditableProjectRow {
     is_archived: input.is_archived,
     is_flagship: isFlagship,
     flagship_status_id: isFlagship ? nullableId(input.flagship_status_id) : null,
-    flagship_problem_description: null,
-    flagship_solution_description: null,
-    flagship_ai_functionality: null,
+    flagship_problem_description: nullableText(
+      input.flagship_problem_description,
+    ),
+    flagship_solution_description: nullableText(
+      input.flagship_solution_description,
+    ),
+    flagship_ai_functionality: nullableText(input.flagship_ai_functionality),
     flagship_client_current_state: nullableText(
       input.flagship_client_current_state,
     ),
@@ -1050,6 +1119,7 @@ function normalizeInput(input: ProjectEditInput): EditableProjectRow {
     flagship_innovation_level: normalizeInnovationLevel(
       input.flagship_innovation_level,
     ),
+    flagship_innovation_reason: nullableText(input.flagship_innovation_reason),
     flagship_uploaded_to_prbr: input.flagship_uploaded_to_prbr,
     flagship_approved_by_ca: input.flagship_approved_by_ca,
   };
@@ -1282,13 +1352,32 @@ async function applyAutofillProjectData({
   const innovationLevel = mapPassportFillerRatingToInnovationLevel(
     state.final_assessment?.rating,
   );
+  const innovationReason = formatInnovateAssessmentReason(
+    state.final_assessment,
+  );
   const descriptionUploaded = Boolean(problem && solution && functionality);
+  const needsHelp = state.status === "escalated";
 
   updatePayload.flagship_problem_description = problem;
   updatePayload.flagship_solution_description = solution;
   updatePayload.flagship_ai_functionality = functionality;
   updatePayload.flagship_description_uploaded = descriptionUploaded;
   updatePayload.flagship_innovation_level = innovationLevel;
+  updatePayload.flagship_innovation_reason = innovationReason;
+
+  if (needsHelp) {
+    const { data: helpStatus } = await supabase
+      .from("flagship_statuses")
+      .select("id")
+      .eq("name", "требуется помощь")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (helpStatus?.id) {
+      updatePayload.flagship_status_id = helpStatus.id;
+      updatePayload.is_flagship = true;
+    }
+  }
 
   changes.push({
     field_name: "passport_autofill_completed",
@@ -1315,6 +1404,18 @@ async function applyAutofillProjectData({
     old_value: null,
     new_value: innovationLevel,
   });
+  changes.push({
+    field_name: "flagship_innovation_reason",
+    old_value: null,
+    new_value: innovationReason,
+  });
+  if (needsHelp && updatePayload.flagship_status_id) {
+    changes.push({
+      field_name: "flagship_status_id",
+      old_value: null,
+      new_value: "требуется помощь",
+    });
+  }
 
   const { error: updateError } = await supabase
     .from("projects")
