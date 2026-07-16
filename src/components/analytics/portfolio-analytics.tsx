@@ -225,13 +225,13 @@ function CsmMatrix({
           >
             <span
               className="h-3.5 w-3.5 rounded-sm border border-slate-200"
-              style={{ backgroundColor: item.color }}
+              style={{ backgroundColor: getPastelColor(item.color) }}
             />
             {item.label}
           </span>
         ))}
         <span className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-          <span className="h-3.5 w-5 rounded-sm border-[3px] border-indigo-700 bg-white" />
+          <span className="h-3.5 w-5 rounded-sm border-2 border-black bg-white" />
           Обводка = флагман / паспорт
         </span>
       </div>
@@ -278,7 +278,7 @@ function CsmMatrix({
 }
 
 function ProjectPill({ project }: { project: ProjectListItem }) {
-  const color = getStatusColor(project);
+  const color = getPastelColor(getStatusColor(project));
   const hasFlagshipOutline =
     project.is_flagship || project.flagship_passport_uploaded;
   const title = [
@@ -292,13 +292,13 @@ function ProjectPill({ project }: { project: ProjectListItem }) {
   return (
     <Link
       className={`max-w-[170px] truncate rounded-md px-2.5 py-1 text-xs font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-        hasFlagshipOutline ? "border-[3px]" : ""
+        hasFlagshipOutline ? "border-2" : ""
       }`}
       href={`/projects/${project.id}`}
       style={{
         backgroundColor: color,
-        borderColor: hasFlagshipOutline ? "#4338ca" : "transparent",
-        color: getReadableTextColor(color),
+        borderColor: hasFlagshipOutline ? "#000000" : "transparent",
+        color: "#0f172a",
       }}
       title={title}
     >
@@ -535,12 +535,12 @@ function slugify(value: string) {
     .replace(/[^a-zа-я0-9-]/g, "");
 }
 
-function getReadableTextColor(hexColor: string) {
+function getPastelColor(hexColor: string) {
   const hex = hexColor.replace("#", "");
   const red = Number.parseInt(hex.slice(0, 2), 16);
   const green = Number.parseInt(hex.slice(2, 4), 16);
   const blue = Number.parseInt(hex.slice(4, 6), 16);
-  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+  const mixWithWhite = (channel: number) => Math.round(channel * 0.35 + 255 * 0.65);
 
-  return luminance < 150 ? "#ffffff" : "#0f172a";
+  return `rgb(${mixWithWhite(red)}, ${mixWithWhite(green)}, ${mixWithWhite(blue)})`;
 }
