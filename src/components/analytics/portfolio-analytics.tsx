@@ -256,6 +256,10 @@ function CsmMatrix({
             projects: filteredProjects,
           };
         })
+        .filter(
+          (group) =>
+            selectedIndustryUnitIdSet.size === 0 || group.count > 0,
+        )
         .sort((first, second) => second.count - first.count),
     [projects, selectedIndustryUnitIdSet],
   );
