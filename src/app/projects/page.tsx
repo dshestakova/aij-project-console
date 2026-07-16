@@ -102,6 +102,7 @@ function getFiltersKey(filters: ReturnType<typeof getInitialFilters>) {
     filters.social,
     filters.quality,
     filters.archiveMode,
+    filters.query,
   ].join("|");
 }
 
@@ -118,11 +119,18 @@ function getInitialFilters(
     social: getBooleanParam(searchParams.social),
     quality: getQualityParam(searchParams.quality),
     archiveMode: getArchiveParam(searchParams.archive ?? searchParams.archived),
+    query: getTextParam(searchParams.search ?? searchParams.query),
   };
 }
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "all" : value ?? "all";
+}
+
+function getTextParam(value: string | string[] | undefined) {
+  const param = Array.isArray(value) ? value[0] ?? "" : value ?? "";
+
+  return param.trim();
 }
 
 function getBooleanParam(value: string | string[] | undefined): BooleanFilter {

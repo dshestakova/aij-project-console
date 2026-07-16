@@ -90,7 +90,10 @@ export default async function NewProjectPage() {
               {errorMessage}
             </section>
           ) : (
-            <ProjectCreateForm references={references} />
+            <ProjectCreateForm
+              draftOwnerKey={currentProfile.id ?? user.email ?? "anonymous"}
+              references={references}
+            />
           )}
         </section>
       </div>

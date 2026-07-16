@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import {
   finalizePassportAutofillAction,
@@ -13,6 +13,7 @@ import {
   updateProjectAction,
 } from "@/app/projects/[id]/actions";
 import { Badge } from "@/components/projects/badge";
+import { useProjectFormDraft } from "@/hooks/use-project-form-draft";
 import { getIndustryUnitColorKey } from "@/lib/project-registry/colors";
 import { formatDateTime, getDisplayValue } from "@/lib/project-registry/format";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
@@ -29,6 +30,7 @@ type ProjectDetailEditorProps = {
   canEdit: boolean;
   changes: ProjectChangeItem[];
   currentPassport: ProjectFileItem | null;
+  draftOwnerKey: string;
   project: ProjectDetail;
   references: ProjectEditReferences;
 };
@@ -204,12 +206,14 @@ export function ProjectDetailEditor({
   canEdit,
   changes,
   currentPassport,
+  draftOwnerKey,
   project,
   references,
 }: ProjectDetailEditorProps) {
   const router = useRouter();
+  const initialForm = useMemo(() => getInitialForm(project), [project]);
   const [isEditing, setIsEditing] = useState(false);
-  const [form, setForm] = useState(() => getInitialForm(project));
+  const [form, setForm] = useState<ProjectEditInput>(initialForm);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [passportMessage, setPassportMessage] = useState<string | null>(null);
@@ -219,8 +223,23 @@ export function ProjectDetailEditor({
   const [showAiPassportWarning, setShowAiPassportWarning] = useState(false);
   const [remoteAutofillId, setRemoteAutofillId] = useState<string | null>(null);
   const [isAutofillBusy, setIsAutofillBusy] = useState(false);
+  const [documentError, setDocumentError] = useState<string | null>(null);
+  const [isDocumentBusy, setIsDocumentBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {
+    clearDraft,
+    discardDraft,
+    draftStatus,
+    hasPendingDraft,
+    hasUnsavedChanges,
+    restoreDraft,
+  } = useProjectFormDraft({
+    enabled: isEditing,
+    form,
+    initialForm,
+    storageKey: `aij-project-draft:${draftOwnerKey}:${project.id}`,
+  });
 
   function updateField<K extends keyof ProjectEditInput>(
     field: K,
@@ -230,9 +249,17 @@ export function ProjectDetailEditor({
   }
 
   function handleCancel() {
-    setForm(getInitialForm(project));
+    if (
+      hasUnsavedChanges &&
+      !window.confirm("Есть несохраненные изменения. Уйти без сохранения?")
+    ) {
+      return;
+    }
+
+    setForm(initialForm);
     setError(null);
     setMessage(null);
+    clearDraft();
     setIsEditing(false);
   }
 
@@ -250,6 +277,7 @@ export function ProjectDetailEditor({
       }
 
       setMessage(result.message);
+      clearDraft();
       setIsEditing(false);
       router.refresh();
     });
@@ -454,6 +482,35 @@ export function ProjectDetailEditor({
     };
   }, [project.id, remoteAutofillId, router]);
 
+  async function handleDocumentDownload() {
+    setDocumentError(null);
+    setIsDocumentBusy(true);
+
+    try {
+      const response = await fetch(`/api/projects/${project.id}/document`);
+
+      if (!response.ok) {
+        throw new Error("download_failed");
+      }
+
+      const blob = await response.blob();
+      const filename = getDownloadFilename(response.headers);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setDocumentError("Не удалось скачать документ проекта. Попробуйте позже.");
+    } finally {
+      setIsDocumentBusy(false);
+    }
+  }
+
   return (
     <>
       <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -473,13 +530,21 @@ export function ProjectDetailEditor({
             <p className="text-sm text-slate-500">
               Обновлено {formatDateTime(project.updated_at)}
             </p>
+            <button
+              className="h-10 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 sm:w-auto"
+              disabled={isDocumentBusy}
+              onClick={handleDocumentDownload}
+              type="button"
+            >
+              {isDocumentBusy ? "Готовим документ..." : "Скачать документ"}
+            </button>
             {canEdit && !isEditing ? (
               <button
                 className="h-10 w-full rounded-md bg-slate-950 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 sm:w-auto"
                 onClick={() => {
                   setError(null);
                   setMessage(null);
-                  setForm(getInitialForm(project));
+                  setForm(initialForm);
                   setIsEditing(true);
                 }}
                 type="button"
@@ -533,17 +598,27 @@ export function ProjectDetailEditor({
         </section>
       ) : null}
 
+      {documentError ? (
+        <section className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          {documentError}
+        </section>
+      ) : null}
+
       {isEditing ? (
         <ProjectEditForm
           currentPassport={currentPassport}
           form={form}
+          draftStatus={draftStatus}
+          hasPendingDraft={hasPendingDraft}
           isPending={isPending}
           isPassportBusy={isPassportBusy}
           onCancel={handleCancel}
           onChange={updateField}
+          onDiscardDraft={discardDraft}
           onPassportDownload={handlePassportDownload}
           onPassportAutofillStart={handleStartPassportAutofill}
           onPassportUpload={handlePassportUpload}
+          onRestoreDraft={() => restoreDraft(setForm)}
           onSubmit={handleSubmit}
           passportError={passportError}
           passportMessage={passportMessage}
@@ -668,15 +743,19 @@ function ProjectReadOnlyView({
 function ProjectEditForm({
   autofillStatus,
   currentPassport,
+  draftStatus,
   form,
+  hasPendingDraft,
   isAutofillBusy,
   isPending,
   isPassportBusy,
   onCancel,
   onChange,
+  onDiscardDraft,
   onPassportAutofillStart,
   onPassportDownload,
   onPassportUpload,
+  onRestoreDraft,
   onSubmit,
   passportError,
   passportMessage,
@@ -685,7 +764,9 @@ function ProjectEditForm({
 }: {
   autofillStatus: string | null;
   currentPassport: ProjectFileItem | null;
+  draftStatus: string | null;
   form: ProjectEditInput;
+  hasPendingDraft: boolean;
   isAutofillBusy: boolean;
   isPending: boolean;
   isPassportBusy: boolean;
@@ -694,9 +775,11 @@ function ProjectEditForm({
     field: K,
     value: ProjectEditInput[K],
   ) => void;
+  onDiscardDraft: () => void;
   onPassportAutofillStart: () => void;
   onPassportDownload: () => void;
   onPassportUpload: (file: File) => void;
+  onRestoreDraft: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   passportError: string | null;
   passportMessage: string | null;
@@ -707,6 +790,37 @@ function ProjectEditForm({
 
   return (
     <form className="flex flex-col gap-4" onSubmit={onSubmit}>
+      {hasPendingDraft ? (
+        <section className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold">Найден несохраненный черновик</p>
+            <p className="mt-1 text-amber-800">
+              Можно восстановить локальные изменения или удалить черновик.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              className="h-10 rounded-md bg-amber-900 px-4 text-sm font-medium text-white transition hover:bg-amber-800"
+              onClick={onRestoreDraft}
+              type="button"
+            >
+              Восстановить
+            </button>
+            <button
+              className="h-10 rounded-md border border-amber-300 bg-white px-4 text-sm font-medium text-amber-900 transition hover:border-amber-400"
+              onClick={onDiscardDraft}
+              type="button"
+            >
+              Удалить черновик
+            </button>
+          </div>
+        </section>
+      ) : draftStatus ? (
+        <p className="self-start rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-500">
+          {draftStatus}
+        </p>
+      ) : null}
+
       <CollapsibleSection defaultOpen title="Основная информация">
         <div className="grid gap-4 lg:grid-cols-3">
           <TextField
@@ -1637,6 +1751,22 @@ function getSafeFileName(fileName: string) {
     .slice(0, 80);
 
   return `${baseName || "passport"}${extension}`;
+}
+
+function getDownloadFilename(headers: Headers) {
+  const disposition = headers.get("content-disposition");
+  const encodedMatch = disposition?.match(/filename\*=UTF-8''([^;]+)/i);
+  const quotedMatch = disposition?.match(/filename="([^"]+)"/i);
+
+  if (encodedMatch?.[1]) {
+    try {
+      return decodeURIComponent(encodedMatch[1]);
+    } catch {
+      return encodedMatch[1];
+    }
+  }
+
+  return quotedMatch?.[1] ?? "project-document.docx";
 }
 
 function transliterateCharacter(character: string) {

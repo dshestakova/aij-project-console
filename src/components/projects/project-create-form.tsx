@@ -7,6 +7,7 @@ import {
   createProjectAction,
   type ProjectEditInput,
 } from "@/app/projects/[id]/actions";
+import { useProjectFormDraft } from "@/hooks/use-project-form-draft";
 import type {
   PersonReference,
   ProjectEditReferences,
@@ -14,6 +15,7 @@ import type {
 } from "@/types/project-registry";
 
 type ProjectCreateFormProps = {
+  draftOwnerKey: string;
   references: ProjectEditReferences;
 };
 
@@ -136,13 +138,29 @@ const initialForm: ProjectEditInput = {
   flagship_approved_by_ca: false,
 };
 
-export function ProjectCreateForm({ references }: ProjectCreateFormProps) {
+export function ProjectCreateForm({
+  draftOwnerKey,
+  references,
+}: ProjectCreateFormProps) {
   const router = useRouter();
   const [form, setForm] = useState<ProjectEditInput>(initialForm);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const isDescriptionUploaded = getIsDescriptionUploaded(form);
+  const {
+    clearDraft,
+    discardDraft,
+    draftStatus,
+    hasPendingDraft,
+    hasUnsavedChanges,
+    restoreDraft,
+  } = useProjectFormDraft({
+    enabled: true,
+    form,
+    initialForm,
+    storageKey: `aij-project-draft:${draftOwnerKey}:new`,
+  });
 
   function updateField<K extends keyof ProjectEditInput>(
     field: K,
@@ -165,13 +183,57 @@ export function ProjectCreateForm({ references }: ProjectCreateFormProps) {
       }
 
       setMessage(result.message);
+      clearDraft();
       router.push(`/projects/${result.projectId}`);
       router.refresh();
     });
   }
 
+  function handleCancel() {
+    if (
+      hasUnsavedChanges &&
+      !window.confirm("Есть несохраненные изменения. Уйти без сохранения?")
+    ) {
+      return;
+    }
+
+    clearDraft();
+    router.push("/projects");
+  }
+
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+      {hasPendingDraft ? (
+        <section className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold">Найден несохраненный черновик</p>
+            <p className="mt-1 text-amber-800">
+              Можно восстановить локальные изменения или удалить черновик.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              className="h-10 rounded-md bg-amber-900 px-4 text-sm font-medium text-white transition hover:bg-amber-800"
+              onClick={() => restoreDraft(setForm)}
+              type="button"
+            >
+              Восстановить
+            </button>
+            <button
+              className="h-10 rounded-md border border-amber-300 bg-white px-4 text-sm font-medium text-amber-900 transition hover:border-amber-400"
+              onClick={discardDraft}
+              type="button"
+            >
+              Удалить черновик
+            </button>
+          </div>
+        </section>
+      ) : draftStatus ? (
+        <p className="self-start rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-500">
+          {draftStatus}
+        </p>
+      ) : null}
+
       {message ? (
         <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
           {message}
@@ -368,7 +430,7 @@ export function ProjectCreateForm({ references }: ProjectCreateFormProps) {
         <button
           className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-400"
           disabled={isPending}
-          onClick={() => router.push("/projects")}
+          onClick={handleCancel}
           type="button"
         >
           Отмена

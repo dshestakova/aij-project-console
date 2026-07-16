@@ -59,7 +59,7 @@ export function PortfolioAnalytics({ data }: PortfolioAnalyticsProps) {
         />
       </div>
 
-      <CsmMatrix projects={data.csmMatrix} />
+      <CsmMatrix projects={data.csmMatrix} statusSegments={data.statusSegments} />
 
       <DirectorAnalytics
         assignmentsCount={data.assignments.length}
@@ -204,16 +204,13 @@ function SegmentCard({
   );
 }
 
-function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"] }) {
-  const statusLegend = [
-    { label: "идея/КП", color: "#fde7b8" },
-    { label: "факт оплаты", color: "#ccefdc" },
-    { label: "уточнение ТЗ", color: "#d7e8ff" },
-    { label: "в разработке", color: "#e6dcff" },
-    { label: "на паузе", color: "#dce5ee" },
-    { label: "Без статуса", color: "#edf0f4" },
-  ];
-
+function CsmMatrix({
+  projects,
+  statusSegments,
+}: {
+  projects: PortfolioAnalyticsData["csmMatrix"];
+  statusSegments: AnalyticsSegment[];
+}) {
   return (
     <DownloadablePanel fileName="csm-matrix">
       <PanelHeader
@@ -221,18 +218,22 @@ function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"]
         title="CSM-матрица"
       />
       <div className="mt-3 flex flex-wrap gap-2">
-        {statusLegend.map((item) => (
+        {statusSegments.map((item) => (
           <span
             className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600"
             key={item.label}
           >
             <span
               className="h-3.5 w-3.5 rounded-sm border border-slate-200"
-              style={{ backgroundColor: item.color }}
+              style={{ backgroundColor: getPastelColor(item.color) }}
             />
             {item.label}
           </span>
         ))}
+        <span className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+          <span className="h-3.5 w-5 rounded-sm border-2 border-black bg-white" />
+          Обводка = флагман / паспорт
+        </span>
       </div>
       {projects.length === 0 ? (
         <EmptyState text="Активных проектов для CSM-матрицы пока нет." />
@@ -277,24 +278,27 @@ function CsmMatrix({ projects }: { projects: PortfolioAnalyticsData["csmMatrix"]
 }
 
 function ProjectPill({ project }: { project: ProjectListItem }) {
-  const color = getStatusColor(project);
+  const color = getPastelColor(getStatusColor(project));
+  const hasFlagshipOutline =
+    project.is_flagship || project.flagship_passport_uploaded;
   const title = [
     `Клиент: ${project.client || "Без клиента"}`,
     `Проект: ${project.project_name || "Без названия"}`,
     `Статус: ${project.status?.name || "Без статуса"}`,
     `CSM: ${project.csm?.full_name || "Без CSM"}`,
-    `Флагман: ${project.is_flagship ? "да" : "нет"}`,
+    `Флагман / паспорт: ${hasFlagshipOutline ? "да" : "нет"}`,
   ].join("\n");
 
   return (
     <Link
-      className={`max-w-[170px] truncate rounded-md px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-        project.is_flagship ? "border-[3px]" : ""
+      className={`max-w-[170px] truncate rounded-md px-2.5 py-1 text-xs font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+        hasFlagshipOutline ? "border-2" : ""
       }`}
       href={`/projects/${project.id}`}
       style={{
         backgroundColor: color,
-        borderColor: project.is_flagship ? "#4338ca" : "transparent",
+        borderColor: hasFlagshipOutline ? "#000000" : "transparent",
+        color: "#0f172a",
       }}
       title={title}
     >
@@ -375,6 +379,9 @@ function DirectorAnalytics({
                     >
                       {industryUnit.name} · {industryUnit.totalProjects}
                     </Link>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {industryUnit.csmCount} CSM · {industryUnit.projectsPerCsm.toFixed(1)} проекта на CSM
+                    </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {industryUnit.csms.map((csm) => (
                         <Link
@@ -442,11 +449,18 @@ function FlagshipAnalytics({
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {readiness.map((item) => (
           <div
-            className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4"
+            className="rounded-md border bg-white px-4 py-4"
             key={item.key}
+            style={{ borderColor: item.color }}
             title={`${item.label} — ${item.count} проектов`}
           >
-            <p className="text-sm font-medium text-slate-800">{item.label}</p>
+            <div className="flex items-center gap-2">
+              <span
+                className="h-3 w-3 rounded-full"
+                style={{ backgroundColor: item.color }}
+              />
+              <p className="text-sm font-medium text-slate-800">{item.label}</p>
+            </div>
             <p className="mt-1 text-2xl font-semibold text-slate-950">
               {item.count}
               <span className="ml-2 text-sm font-medium text-slate-500">
@@ -519,4 +533,14 @@ function slugify(value: string) {
     .toLowerCase()
     .replaceAll(" ", "-")
     .replace(/[^a-zа-я0-9-]/g, "");
+}
+
+function getPastelColor(hexColor: string) {
+  const hex = hexColor.replace("#", "");
+  const red = Number.parseInt(hex.slice(0, 2), 16);
+  const green = Number.parseInt(hex.slice(2, 4), 16);
+  const blue = Number.parseInt(hex.slice(4, 6), 16);
+  const mixWithWhite = (channel: number) => Math.round(channel * 0.35 + 255 * 0.65);
+
+  return `rgb(${mixWithWhite(red)}, ${mixWithWhite(green)}, ${mixWithWhite(blue)})`;
 }
