@@ -258,14 +258,44 @@ function buildCsmMatrix(
   return Array.from(groups.values())
     .map((group) => ({
       ...group,
-      projects: group.projects.sort((first, second) =>
-        (first.client ?? first.external_id).localeCompare(
-          second.client ?? second.external_id,
-          "ru",
-        ),
-      ),
+      projects: group.projects.sort(compareCsmProjects),
     }))
     .sort((first, second) => second.count - first.count);
+}
+
+function compareCsmProjects(first: ProjectListItem, second: ProjectListItem) {
+  const statusDifference =
+    getCsmStatusOrder(first.status?.name) -
+    getCsmStatusOrder(second.status?.name);
+
+  if (statusDifference !== 0) {
+    return statusDifference;
+  }
+
+  return getCsmProjectSortName(first).localeCompare(
+    getCsmProjectSortName(second),
+    "ru",
+  );
+}
+
+function getCsmStatusOrder(statusName: string | null | undefined) {
+  const normalizedStatus = normalizeName(statusName);
+  const orderByStatus: Record<string, number> = {
+    "внедрен в прод": 0,
+    "внедрен в промышленную эксплуатацию": 0,
+    "в разработке": 1,
+    "уточнение тз": 2,
+    "идея/кп": 3,
+    опасно: 4,
+    пауза: 5,
+    "на паузе": 5,
+  };
+
+  return orderByStatus[normalizedStatus] ?? 6;
+}
+
+function getCsmProjectSortName(project: ProjectListItem) {
+  return project.client?.trim() || project.project_name?.trim() || project.external_id;
 }
 
 function buildDirectorGroups(
