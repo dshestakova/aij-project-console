@@ -1,11 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { DownloadablePanel } from "@/components/analytics/downloadable-panel";
-import {
-  getStatusColor,
-  type AnalyticsSegment,
-  type PortfolioAnalyticsData,
+import type {
+  AnalyticsSegment,
+  PortfolioAnalyticsData,
 } from "@/lib/analytics/portfolio";
+import { getStatusChartColor } from "@/lib/project-registry/colors";
 import type { ProjectListItem } from "@/types/project-registry";
 
 type PortfolioAnalyticsProps = {
@@ -211,12 +214,114 @@ function CsmMatrix({
   projects: PortfolioAnalyticsData["csmMatrix"];
   statusSegments: AnalyticsSegment[];
 }) {
+  const [selectedIndustryUnitIds, setSelectedIndustryUnitIds] = useState<
+    string[]
+  >([]);
+  const industryUnitOptions = useMemo(() => {
+    const options = new Map<string, string>();
+
+    for (const group of projects) {
+      for (const project of group.projects) {
+        options.set(
+          project.industry_unit_id ?? "__none",
+          project.industry_unit?.name ?? "Без отраслевого управления",
+        );
+      }
+    }
+
+    return Array.from(options, ([id, name]) => ({ id, name })).sort(
+      (first, second) => first.name.localeCompare(second.name, "ru"),
+    );
+  }, [projects]);
+  const selectedIndustryUnitIdSet = useMemo(
+    () => new Set(selectedIndustryUnitIds),
+    [selectedIndustryUnitIds],
+  );
+  const filteredGroups = useMemo(
+    () =>
+      projects
+        .map((group) => {
+          const filteredProjects =
+            selectedIndustryUnitIdSet.size === 0
+              ? group.projects
+              : group.projects.filter((project) =>
+                  selectedIndustryUnitIdSet.has(
+                    project.industry_unit_id ?? "__none",
+                  ),
+                );
+
+          return {
+            ...group,
+            count: filteredProjects.length,
+            projects: filteredProjects,
+          };
+        })
+        .sort((first, second) => second.count - first.count),
+    [projects, selectedIndustryUnitIdSet],
+  );
+  const selectedIndustryUnitNames = industryUnitOptions
+    .filter((option) => selectedIndustryUnitIdSet.has(option.id))
+    .map((option) => option.name);
+  const filterContext = selectedIndustryUnitNames.length
+    ? selectedIndustryUnitNames.join(", ")
+    : "все";
+  const hasVisibleProjects = filteredGroups.some((group) => group.count > 0);
+
+  function toggleIndustryUnit(id: string) {
+    setSelectedIndustryUnitIds((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id],
+    );
+  }
+
   return (
     <DownloadablePanel fileName="csm-matrix">
       <PanelHeader
         description="Компактная матрица по CSM: строка CSM слева, справа горизонтальные клиентские проекты со статусной заливкой."
         title="CSM-матрица"
       />
+      <div className="mt-4" data-export-ignore="true">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Отраслевые управления
+        </p>
+        <details className="relative max-w-xl rounded-md border border-slate-200 bg-white text-sm text-slate-700">
+          <summary className="cursor-pointer list-none px-3 py-2.5 font-medium">
+            {selectedIndustryUnitNames.length > 0
+              ? `Выбрано: ${selectedIndustryUnitNames.join(", ")}`
+              : "Все отраслевые управления"}
+          </summary>
+          <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-md border border-slate-200 bg-white p-3 shadow-lg">
+            <button
+              className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium transition hover:bg-slate-100 disabled:text-slate-400"
+              disabled={selectedIndustryUnitIds.length === 0}
+              onClick={() => setSelectedIndustryUnitIds([])}
+              type="button"
+            >
+              Все / сбросить
+            </button>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {industryUnitOptions.map((option) => (
+                <label
+                  className="flex cursor-pointer items-center gap-2 rounded-md bg-slate-50 px-3 py-2"
+                  key={option.id}
+                >
+                  <input
+                    checked={selectedIndustryUnitIdSet.has(option.id)}
+                    className="h-4 w-4 accent-slate-900"
+                    onChange={() => toggleIndustryUnit(option.id)}
+                    type="checkbox"
+                  />
+                  <span>{option.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </details>
+      </div>
+      <p className="mt-3 text-xs font-medium text-slate-500">
+        Отраслевые управления: {filterContext}
+      </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {statusSegments.map((item) => (
           <span
@@ -235,12 +340,18 @@ function CsmMatrix({
           Обводка = флагман / паспорт
         </span>
       </div>
-      {projects.length === 0 ? (
-        <EmptyState text="Активных проектов для CSM-матрицы пока нет." />
+      {!hasVisibleProjects ? (
+        <EmptyState
+          text={
+            selectedIndustryUnitIds.length > 0
+              ? "По выбранным отраслевым управлениям проекты не найдены."
+              : "Активных проектов для CSM-матрицы пока нет."
+          }
+        />
       ) : (
         <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
           <div className="min-w-[760px] divide-y divide-slate-200">
-            {projects.map((group) => (
+            {filteredGroups.map((group) => (
               <article
                 className="grid gap-3 bg-slate-50 px-3 py-2.5 lg:grid-cols-[190px_1fr]"
                 key={group.id}
@@ -278,7 +389,9 @@ function CsmMatrix({
 }
 
 function ProjectPill({ project }: { project: ProjectListItem }) {
-  const color = getPastelColor(getStatusColor(project));
+  const color = getPastelColor(
+    getStatusChartColor(project.status?.name, project.status?.color_key),
+  );
   const hasFlagshipOutline =
     project.is_flagship || project.flagship_passport_uploaded;
   const title = [
