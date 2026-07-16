@@ -51,6 +51,34 @@ const chartToneByColor: Record<string, string> = {
   violet: "bg-violet-400",
 };
 
+const chartColorByKey: Record<string, string> = {
+  amber: "#f59e0b",
+  blue: "#0284c7",
+  "blue-gray": "#475569",
+  "blue-violet": "#4f46e5",
+  cyan: "#0891b2",
+  gray: "#94a3b8",
+  green: "#059669",
+  indigo: "#4f46e5",
+  navy: "#1e293b",
+  orange: "#ea580c",
+  rose: "#e11d48",
+  slate: "#64748b",
+  teal: "#0d9488",
+  violet: "#7c3aed",
+};
+
+const statusColorByName: Record<string, string> = {
+  "идея/кп": chartColorByKey.amber,
+  "уточнение тз": chartColorByKey.blue,
+  "в разработке": chartColorByKey.violet,
+  "внедрен в прод": chartColorByKey.green,
+  "внедрен в промышленную эксплуатацию": chartColorByKey.green,
+  "факт оплаты": chartColorByKey.teal,
+  "на паузе": chartColorByKey.slate,
+  опасно: "#dc2626",
+};
+
 const industryUnitColorByName: Record<string, ColorKey> = {
   "сфера услуг": "cyan",
   торговля: "green",
@@ -75,9 +103,32 @@ export function getChartTone(colorKey: ColorKey | null | undefined) {
   return chartToneByColor[colorKey ?? ""] ?? chartToneByColor.gray;
 }
 
+export function getChartColor(colorKey: ColorKey | null | undefined) {
+  return chartColorByKey[colorKey ?? ""] ?? chartColorByKey.gray;
+}
+
+export function getStatusChartColor(
+  name: string | null | undefined,
+  colorKey: ColorKey | null | undefined,
+) {
+  const normalizedName = normalizeColorName(name);
+
+  if (normalizedName === "опасно") {
+    return statusColorByName[normalizedName];
+  }
+
+  return colorKey
+    ? getChartColor(colorKey)
+    : statusColorByName[normalizedName] ?? chartColorByKey.gray;
+}
+
 export function getIndustryUnitColorKey(
   name: string | null | undefined,
   colorKey: ColorKey | null | undefined,
 ) {
   return industryUnitColorByName[name?.trim().toLowerCase() ?? ""] ?? colorKey;
+}
+
+function normalizeColorName(value: string | null | undefined) {
+  return value?.trim().toLowerCase().replaceAll("ё", "е") ?? "";
 }

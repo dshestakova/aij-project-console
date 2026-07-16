@@ -1,6 +1,11 @@
 import { getProjectRegistryData } from "@/lib/supabase/project-registry";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProjectQualityCategory } from "@/lib/project-registry/filters";
+import {
+  getChartColor,
+  getIndustryUnitColorKey,
+  getStatusChartColor,
+} from "@/lib/project-registry/colors";
 import type {
   PersonReference,
   ProjectListItem,
@@ -31,6 +36,8 @@ export type DirectorAnalyticsGroup = {
     id: string;
     name: string;
     totalProjects: number;
+    csmCount: number;
+    projectsPerCsm: number;
     href: string;
     csms: Array<{
       id: string;
@@ -72,32 +79,11 @@ export type PortfolioAnalyticsData = {
     label: string;
     count: number;
     percent: number;
+    color: string;
   }>;
   qualitySegments: AnalyticsSegment[];
   errorMessage: string | null;
 };
-
-const statusColors = new Map([
-  ["идея/кп", "#fde7b8"],
-  ["факт оплаты", "#ccefdc"],
-  ["уточнение тз", "#d7e8ff"],
-  ["в разработке", "#e6dcff"],
-  ["на паузе", "#dce5ee"],
-  ["__none", "#edf0f4"],
-]);
-
-const industryUnitColors = new Map([
-  ["сфера услуг", "#cbeff7"],
-  ["торговля", "#d7f3d2"],
-  ["промышленность", "#eadcff"],
-  ["недвижимость", "#ffe0c7"],
-  ["производство", "#dbe4ff"],
-  ["инфраструктура", "#cceee7"],
-  ["социальный", "#ffd7df"],
-  ["скм", "#e4d8ff"],
-  ["транспорт", "#dfe7ef"],
-  ["__none", "#edf0f4"],
-]);
 
 export async function getPortfolioAnalyticsData(): Promise<PortfolioAnalyticsData> {
   const registryData = await getProjectRegistryData();
@@ -117,8 +103,8 @@ export async function getPortfolioAnalyticsData(): Promise<PortfolioAnalyticsDat
       missingHref: "/projects?status=__none",
       getReference: (project) => project.status,
       getHref: (id) => `/projects?status=${id}`,
-      getColor: (label, isMissing) =>
-        getMappedColor(statusColors, isMissing ? "__none" : label),
+      getColor: (reference) =>
+        getStatusChartColor(reference?.name, reference?.color_key),
     }),
     industryUnitSegments: buildReferenceSegments({
       projects: activeProjects,
@@ -127,8 +113,10 @@ export async function getPortfolioAnalyticsData(): Promise<PortfolioAnalyticsDat
       missingHref: "/projects?industry_unit=__none",
       getReference: (project) => project.industry_unit,
       getHref: (id) => `/projects?industry_unit=${id}`,
-      getColor: (label, isMissing) =>
-        getMappedColor(industryUnitColors, isMissing ? "__none" : label),
+      getColor: (reference) =>
+        getChartColor(
+          getIndustryUnitColorKey(reference?.name, reference?.color_key),
+        ),
     }),
     csmMatrix: buildCsmMatrix(activeProjects, registryData.csms),
     directorGroups: buildDirectorGroups(
@@ -142,14 +130,14 @@ export async function getPortfolioAnalyticsData(): Promise<PortfolioAnalyticsDat
         key: "flagship",
         label: "Флагманские",
         count: flagshipProjects.length,
-        color: "#dbe4ff",
+        color: getChartColor("indigo"),
         href: "/projects?flagship=true",
       },
       {
         key: "not_flagship",
         label: "Не флагманские",
         count: activeProjects.length - flagshipProjects.length,
-        color: "#edf0f4",
+        color: getChartColor("teal"),
         href: "/projects?flagship=false",
       },
     ].sort(sortSegments),
@@ -160,8 +148,8 @@ export async function getPortfolioAnalyticsData(): Promise<PortfolioAnalyticsDat
       missingHref: "/projects?flagship=true&flagship_status=__none",
       getReference: (project) => project.flagship_status,
       getHref: (id) => `/projects?flagship=true&flagship_status=${id}`,
-      getColor: (label, isMissing) =>
-        getMappedColor(statusColors, isMissing ? "__none" : label),
+      getColor: (reference) =>
+        getStatusChartColor(reference?.name, reference?.color_key),
     }),
     flagshipReadiness: buildFlagshipReadiness(flagshipProjects),
     qualitySegments: buildQualitySegments(activeProjects),
@@ -213,14 +201,14 @@ function buildReferenceSegments({
   missingLabel: string;
   getReference: (project: ProjectListItem) => ReferenceItem | null;
   getHref: (id: string) => string;
-  getColor: (label: string, isMissing: boolean) => string;
+  getColor: (reference: ReferenceItem | null) => string;
 }) {
   const segments = references.map((reference) => ({
     key: reference.id,
     label: reference.name,
     count: projects.filter((project) => getReference(project)?.id === reference.id)
       .length,
-    color: getColor(reference.name, false),
+    color: getColor(reference),
     href: getHref(reference.id),
   }));
 
@@ -228,7 +216,7 @@ function buildReferenceSegments({
     key: "__none",
     label: missingLabel,
     count: projects.filter((project) => !getReference(project)).length,
-    color: getColor(missingLabel, true),
+    color: getColor(null),
     href: missingHref,
   });
 
@@ -363,6 +351,10 @@ function buildDirectorGroups(
         industryUnits: director.industryUnits
           .map((industryUnit) => ({
             ...industryUnit,
+            csmCount: industryUnit.csms.length,
+            projectsPerCsm: industryUnit.csms.length
+              ? industryUnit.totalProjects / industryUnit.csms.length
+              : 0,
             csms: industryUnit.csms.sort(
               (first, second) => second.projectCount - first.projectCount,
             ),
@@ -430,6 +422,8 @@ function addIndustryUnitGroup(
     id,
     name,
     totalProjects: 0,
+    csmCount: 0,
+    projectsPerCsm: 0,
     href: `/projects?director=${director.id}&industry_unit=${id}`,
     csms: [],
   };
@@ -460,30 +454,35 @@ function buildFlagshipReadiness(projects: ProjectListItem[]) {
       label: "Описание загружено",
       count: projects.filter((project) => project.flagship_description_uploaded)
         .length,
+      color: getChartColor("blue"),
     },
     {
       key: "passport",
       label: "Паспорт загружен",
       count: projects.filter((project) => project.flagship_passport_uploaded)
         .length,
+      color: getChartColor("indigo"),
     },
     {
       key: "innovation",
       label: "Инновационность пройдена",
       count: projects.filter((project) => project.flagship_innovation_level)
         .length,
+      color: getChartColor("violet"),
     },
     {
       key: "prbr",
       label: "Загружен на ПРБР",
       count: projects.filter((project) => project.flagship_uploaded_to_prbr)
         .length,
+      color: getChartColor("orange"),
     },
     {
       key: "ca",
       label: "Одобрен ЦА",
       count: projects.filter((project) => project.flagship_approved_by_ca)
         .length,
+      color: getChartColor("green"),
     },
   ];
 
@@ -498,21 +497,21 @@ function buildQualitySegments(projects: ProjectListItem[]): AnalyticsSegment[] {
     {
       key: "good",
       label: "Заполнено хорошо",
-      color: "#ccefdc",
+      color: getChartColor("green"),
       count: 0,
       href: "/projects?quality=good",
     },
     {
       key: "partial",
       label: "Заполнено частично",
-      color: "#fde7b8",
+      color: getChartColor("amber"),
       count: 0,
       href: "/projects?quality=partial",
     },
     {
       key: "poor",
       label: "Много пустых полей",
-      color: "#ffd7df",
+      color: getChartColor("rose"),
       count: 0,
       href: "/projects?quality=poor",
     },
@@ -531,11 +530,7 @@ function buildQualitySegments(projects: ProjectListItem[]): AnalyticsSegment[] {
 }
 
 export function getStatusColor(project: ProjectListItem) {
-  return getMappedColor(statusColors, project.status?.name ?? "__none");
-}
-
-function getMappedColor(map: Map<string, string>, label: string) {
-  return map.get(normalizeName(label)) ?? "#e2e8f0";
+  return getStatusChartColor(project.status?.name, project.status?.color_key);
 }
 
 function normalizeName(value: string | null | undefined) {
