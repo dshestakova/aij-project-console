@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "docs:guides:pdf": "node scripts/generate-guide-pdfs.mjs",
+    "docs:guides:screenshots": "node scripts/capture-guide-screenshots.mjs",
+    "docs:guides:build": "npm run docs:guides:screenshots && npm run docs:guides:pdf",
     "import:projects": "node scripts/import-projects-csv.mjs",
     "start": "next start",
     "lint": "eslint",
@@ -25,6 +27,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "playwright": "^1.61.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

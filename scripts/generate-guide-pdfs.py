@@ -15,13 +15,14 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
-    Flowable,
+    Image,
     KeepTogether,
     PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
 )
+from reportlab.platypus.tableofcontents import TableOfContents
 
 ROOT = Path(__file__).resolve().parents[1]
 GUIDES_DIR = ROOT / "docs" / "guides"
@@ -156,6 +157,26 @@ def build_styles():
             spaceBefore=5,
             spaceAfter=8,
         ),
+        "image_caption": ParagraphStyle(
+            "ImageCaption",
+            parent=styles["BodyText"],
+            fontName="GuideSans",
+            fontSize=8.2,
+            leading=11,
+            alignment=TA_CENTER,
+            textColor=MUTED,
+            spaceBefore=4,
+            spaceAfter=9,
+        ),
+        "toc_title": ParagraphStyle(
+            "TocTitle",
+            parent=styles["Heading1"],
+            fontName="GuideSans-Bold",
+            fontSize=20,
+            leading=25,
+            textColor=NAVY,
+            spaceAfter=12,
+        ),
     }
 
 
@@ -177,31 +198,20 @@ def inline_markup(value: str) -> str:
     return escaped
 
 
-class ScreenshotPlaceholder(Flowable):
-    def __init__(self, label: str, width: float):
-        super().__init__()
-        self.label = normalize_pdf_text(label)
-        self.width = width
-        self.height = 32 * mm
-
-    def draw(self):
-        canvas = self.canv
-        canvas.saveState()
-        canvas.setFillColor(PAPER)
-        canvas.setStrokeColor(colors.HexColor("#AAB4C5"))
-        canvas.setDash(3, 3)
-        canvas.roundRect(0, 0, self.width, self.height, 5, fill=1, stroke=1)
-        canvas.setDash()
-        canvas.setFillColor(MUTED)
-        canvas.setFont("GuideSans-Bold", 8.5)
-        canvas.drawCentredString(self.width / 2, self.height / 2 + 3, "МЕСТО ДЛЯ СКРИНШОТА")
-        canvas.setFont("GuideSans", 7.8)
-        text = self.label[:100]
-        canvas.drawCentredString(self.width / 2, self.height / 2 - 10, text)
-        canvas.restoreState()
-
-
 def cover_story(title: str, audience: str, styles):
+    toc = TableOfContents()
+    toc.levelStyles = [
+        ParagraphStyle(
+            "TocLevel1",
+            fontName="GuideSans",
+            fontSize=10,
+            leading=15,
+            textColor=NAVY,
+            leftIndent=0,
+            firstLineIndent=0,
+            spaceBefore=3,
+        )
+    ]
     return [
         Spacer(1, 37 * mm),
         Paragraph("AIJ PROJECT CONSOLE", styles["cover_kicker"]),
@@ -224,6 +234,9 @@ def cover_story(title: str, audience: str, styles):
             ),
         ),
         PageBreak(),
+        Paragraph("Содержание", styles["toc_title"]),
+        toc,
+        PageBreak(),
     ]
 
 
@@ -245,11 +258,36 @@ def markdown_to_story(path: Path, audience: str, styles, content_width: float):
             flush_paragraph()
             continue
 
-        if line.startswith("[Скриншот:") and line.endswith("]"):
+        image_match = re.match(r"^!\[(.+?)\]\((.+?)\)$", line)
+        if image_match:
             flush_paragraph()
+            caption = image_match.group(1).strip()
+            image_path = (path.parent / image_match.group(2).strip()).resolve()
+            if not image_path.exists():
+                raise RuntimeError(f"Guide screenshot not found: {image_path}")
+            screenshot = Image(str(image_path))
+            max_height = 132 * mm
+            scale = min(
+                content_width / screenshot.imageWidth,
+                max_height / screenshot.imageHeight,
+                1,
+            )
+            screenshot.drawWidth = screenshot.imageWidth * scale
+            screenshot.drawHeight = screenshot.imageHeight * scale
+            screenshot.hAlign = "CENTER"
             story.append(Spacer(1, 3 * mm))
-            story.append(ScreenshotPlaceholder(line[1:-1], content_width))
-            story.append(Spacer(1, 4 * mm))
+            story.append(
+                KeepTogether(
+                    [
+                        screenshot,
+                        Paragraph(inline_markup(caption), styles["image_caption"]),
+                    ]
+                )
+            )
+        elif line.startswith("[Скриншот:"):
+            raise RuntimeError(
+                f"Screenshot placeholder remains in {path.name}: {line}"
+            )
         elif line.startswith("### "):
             flush_paragraph()
             story.append(Paragraph(inline_markup(line[4:]), styles["h3"]))
@@ -314,13 +352,24 @@ def draw_page(canvas, document):
     canvas.restoreState()
 
 
+class GuideDocTemplate(SimpleDocTemplate):
+    def afterFlowable(self, flowable):
+        if not isinstance(flowable, Paragraph) or flowable.style.name != "H2":
+            return
+        text = flowable.getPlainText()
+        key = f"section-{self.page}-{abs(hash(text))}"
+        self.canv.bookmarkPage(key)
+        self.canv.addOutlineEntry(text, key, level=0, closed=False)
+        self.notify("TOCEntry", (0, text, self.page, key))
+
+
 def generate(source_name: str, output_name: str, audience: str) -> None:
     source = GUIDES_DIR / source_name
     output = OUTPUT_DIR / output_name
     output.parent.mkdir(parents=True, exist_ok=True)
 
     styles = build_styles()
-    document = SimpleDocTemplate(
+    document = GuideDocTemplate(
         str(output),
         pagesize=A4,
         leftMargin=20 * mm,
@@ -335,7 +384,7 @@ def generate(source_name: str, output_name: str, audience: str) -> None:
     title, story = markdown_to_story(source, audience, styles, content_width)
     document.guide_title = title
     document.title = title
-    document.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    document.multiBuild(story, onFirstPage=draw_page, onLaterPages=draw_page)
     print(f"Generated {output.relative_to(ROOT)}")
 
 
