@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "docs:guides:pdf": "node scripts/generate-guide-pdfs.mjs",
     "import:projects": "node scripts/import-projects-csv.mjs",
     "start": "next start",
     "lint": "eslint",
