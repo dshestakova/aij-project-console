@@ -62,7 +62,11 @@ export function PortfolioAnalytics({ data }: PortfolioAnalyticsProps) {
         />
       </div>
 
-      <CsmMatrix projects={data.csmMatrix} statusSegments={data.statusSegments} />
+      <CsmMatrix
+        assignments={data.assignments}
+        projects={data.csmMatrix}
+        statusSegments={data.statusSegments}
+      />
 
       <DirectorAnalytics
         assignmentsCount={data.assignments.length}
@@ -208,9 +212,11 @@ function SegmentCard({
 }
 
 function CsmMatrix({
+  assignments,
   projects,
   statusSegments,
 }: {
+  assignments: PortfolioAnalyticsData["assignments"];
   projects: PortfolioAnalyticsData["csmMatrix"];
   statusSegments: AnalyticsSegment[];
 }) {
@@ -219,49 +225,39 @@ function CsmMatrix({
   >([]);
   const industryUnitOptions = useMemo(() => {
     const options = new Map<string, string>();
+    const optionIdByName = new Map<string, string>();
 
     for (const group of projects) {
       for (const project of group.projects) {
-        options.set(
-          project.industry_unit_id ?? "__none",
-          project.industry_unit?.name ?? "Без отраслевого управления",
-        );
+        const id = project.industry_unit_id ?? "__none";
+        const name =
+          project.industry_unit?.name ?? "Без отраслевого управления";
+        options.set(id, name);
+        optionIdByName.set(normalizeFilterName(name), id);
       }
+    }
+
+    for (const assignment of assignments) {
+      if (!assignment.is_active) {
+        continue;
+      }
+
+      const normalizedName = normalizeFilterName(assignment.industry_unit_name);
+      const id =
+        assignment.industry_unit_id ??
+        optionIdByName.get(normalizedName) ??
+        `name:${normalizedName}`;
+      options.set(id, assignment.industry_unit_name);
+      optionIdByName.set(normalizedName, id);
     }
 
     return Array.from(options, ([id, name]) => ({ id, name })).sort(
       (first, second) => first.name.localeCompare(second.name, "ru"),
     );
-  }, [projects]);
+  }, [assignments, projects]);
   const selectedIndustryUnitIdSet = useMemo(
     () => new Set(selectedIndustryUnitIds),
     [selectedIndustryUnitIds],
-  );
-  const filteredGroups = useMemo(
-    () =>
-      projects
-        .map((group) => {
-          const filteredProjects =
-            selectedIndustryUnitIdSet.size === 0
-              ? group.projects
-              : group.projects.filter((project) =>
-                  selectedIndustryUnitIdSet.has(
-                    project.industry_unit_id ?? "__none",
-                  ),
-                );
-
-          return {
-            ...group,
-            count: filteredProjects.length,
-            projects: filteredProjects,
-          };
-        })
-        .filter(
-          (group) =>
-            selectedIndustryUnitIdSet.size === 0 || group.count > 0,
-        )
-        .sort((first, second) => second.count - first.count),
-    [projects, selectedIndustryUnitIdSet],
   );
   const selectedIndustryUnitNames = industryUnitOptions
     .filter((option) => selectedIndustryUnitIdSet.has(option.id))
@@ -269,7 +265,98 @@ function CsmMatrix({
   const filterContext = selectedIndustryUnitNames.length
     ? selectedIndustryUnitNames.join(", ")
     : "все";
-  const hasVisibleProjects = filteredGroups.some((group) => group.count > 0);
+  const filteredGroups = (() => {
+    if (selectedIndustryUnitIdSet.size === 0) {
+      return projects;
+    }
+
+    const selectedIndustryNames = new Set(
+      industryUnitOptions
+        .filter((option) => selectedIndustryUnitIdSet.has(option.id))
+        .map((option) => normalizeFilterName(option.name)),
+    );
+    const projectGroupById = new Map(projects.map((group) => [group.id, group]));
+    const projectGroupByName = new Map(
+      projects.map((group) => [normalizeFilterName(group.name), group]),
+    );
+    const matchesSelectedIndustry = (
+      id: string | null,
+      name: string | null | undefined,
+    ) =>
+      id !== null
+        ? selectedIndustryUnitIdSet.has(id)
+        : selectedIndustryNames.has(normalizeFilterName(name));
+
+    if (assignments.length === 0) {
+      // Fallback for environments where director_csm_assignments is empty:
+      // retain project-based rows because no assignment source is available.
+      return projects
+        .map((group) => {
+          const matchingProjects = group.projects.filter((project) =>
+            matchesSelectedIndustry(
+              project.industry_unit_id,
+              project.industry_unit?.name,
+            ),
+          );
+
+          return {
+            ...group,
+            count: matchingProjects.length,
+            projects: matchingProjects,
+          };
+        })
+        .filter((group) => group.count > 0)
+        .sort(compareFilteredCsmGroups);
+    }
+
+    const assignedGroups = new Map<
+      string,
+      PortfolioAnalyticsData["csmMatrix"][number]
+    >();
+
+    for (const assignment of assignments) {
+      if (
+        !assignment.is_active ||
+        !matchesSelectedIndustry(
+          assignment.industry_unit_id,
+          assignment.industry_unit_name,
+        )
+      ) {
+        continue;
+      }
+
+      const sourceGroup = assignment.csm_id
+        ? projectGroupById.get(assignment.csm_id)
+        : projectGroupByName.get(normalizeFilterName(assignment.csm_name));
+      const id =
+        assignment.csm_id ??
+        sourceGroup?.id ??
+        `name:${normalizeFilterName(assignment.csm_name)}`;
+
+      if (assignedGroups.has(id)) {
+        continue;
+      }
+
+      const matchingProjects = (sourceGroup?.projects ?? []).filter((project) =>
+        matchesSelectedIndustry(
+          project.industry_unit_id,
+          project.industry_unit?.name,
+        ),
+      );
+      assignedGroups.set(id, {
+        id,
+        name: assignment.csm_name || sourceGroup?.name || "Без CSM",
+        count: matchingProjects.length,
+        projects: matchingProjects,
+      });
+    }
+
+    return Array.from(assignedGroups.values()).sort(compareFilteredCsmGroups);
+  })();
+  const hasActiveFilter = selectedIndustryUnitIdSet.size > 0;
+  const shouldShowMatrix = hasActiveFilter
+    ? filteredGroups.length > 0
+    : filteredGroups.some((group) => group.count > 0);
 
   function toggleIndustryUnit(id: string) {
     setSelectedIndustryUnitIds((current) =>
@@ -344,11 +431,13 @@ function CsmMatrix({
           Обводка = флагман / паспорт
         </span>
       </div>
-      {!hasVisibleProjects ? (
+      {!shouldShowMatrix ? (
         <EmptyState
           text={
-            selectedIndustryUnitIds.length > 0
-              ? "По выбранным отраслевым управлениям проекты не найдены."
+            hasActiveFilter && assignments.length > 0
+              ? "По выбранным отраслевым управлениям нет закрепленных CSM."
+              : hasActiveFilter
+                ? "По выбранным отраслевым управлениям проекты не найдены."
               : "Активных проектов для CSM-матрицы пока нет."
           }
         />
@@ -660,4 +749,17 @@ function getPastelColor(hexColor: string) {
   const mixWithWhite = (channel: number) => Math.round(channel * 0.35 + 255 * 0.65);
 
   return `rgb(${mixWithWhite(red)}, ${mixWithWhite(green)}, ${mixWithWhite(blue)})`;
+}
+
+function compareFilteredCsmGroups(
+  first: PortfolioAnalyticsData["csmMatrix"][number],
+  second: PortfolioAnalyticsData["csmMatrix"][number],
+) {
+  return (
+    second.count - first.count || first.name.localeCompare(second.name, "ru")
+  );
+}
+
+function normalizeFilterName(value: string | null | undefined) {
+  return value?.trim().toLowerCase().replaceAll("ё", "е") ?? "";
 }
