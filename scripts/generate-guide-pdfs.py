@@ -21,6 +21,8 @@ from reportlab.platypus import (
     Paragraph,
     SimpleDocTemplate,
     Spacer,
+    Table,
+    TableStyle,
 )
 from reportlab.platypus.tableofcontents import TableOfContents
 
@@ -50,10 +52,24 @@ def register_fonts() -> None:
 
     pdfmetrics.registerFont(TTFont("GuideSans", str(regular)))
     pdfmetrics.registerFont(TTFont("GuideSans-Bold", str(bold)))
+    pdfmetrics.registerFont(TTFont("DirectorOneSans", str(regular)))
+    pdfmetrics.registerFont(TTFont("DirectorOneSans-Bold", str(bold)))
+    pdfmetrics.registerFont(TTFont("CsmOneSans", str(regular)))
+    pdfmetrics.registerFont(TTFont("CsmOneSans-Bold", str(bold)))
     pdfmetrics.registerFontFamily(
         "GuideSans",
         normal="GuideSans",
         bold="GuideSans-Bold",
+    )
+    pdfmetrics.registerFontFamily(
+        "DirectorOneSans",
+        normal="DirectorOneSans",
+        bold="DirectorOneSans-Bold",
+    )
+    pdfmetrics.registerFontFamily(
+        "CsmOneSans",
+        normal="CsmOneSans",
+        bold="CsmOneSans-Bold",
     )
 
 
@@ -180,6 +196,67 @@ def build_styles():
     }
 
 
+def build_one_page_styles(font_family: str):
+    styles = getSampleStyleSheet()
+    return {
+        "kicker": ParagraphStyle(
+            "OnePageKicker",
+            parent=styles["Normal"],
+            fontName=f"{font_family}-Bold",
+            fontSize=8,
+            leading=10,
+            textColor=BLUE,
+            spaceAfter=8,
+        ),
+        "title": ParagraphStyle(
+            "OnePageTitle",
+            parent=styles["Title"],
+            fontName=f"{font_family}-Bold",
+            fontSize=20,
+            leading=23,
+            textColor=NAVY,
+            spaceAfter=4,
+        ),
+        "subtitle": ParagraphStyle(
+            "OnePageSubtitle",
+            parent=styles["Normal"],
+            fontName=font_family,
+            fontSize=10,
+            leading=13,
+            textColor=SLATE,
+            spaceAfter=11,
+        ),
+        "card_title": ParagraphStyle(
+            "OnePageCardTitle",
+            parent=styles["Heading2"],
+            fontName=f"{font_family}-Bold",
+            fontSize=11.2,
+            leading=14,
+            textColor=BLUE,
+            spaceAfter=6,
+        ),
+        "bullet": ParagraphStyle(
+            "OnePageBullet",
+            parent=styles["BodyText"],
+            fontName=font_family,
+            fontSize=8.35,
+            leading=11.3,
+            leftIndent=8,
+            firstLineIndent=-6,
+            textColor=NAVY,
+            spaceAfter=3.5,
+        ),
+        "callout": ParagraphStyle(
+            "OnePageCallout",
+            parent=styles["BodyText"],
+            fontName=font_family,
+            fontSize=8.1,
+            leading=10.8,
+            textColor=colors.HexColor("#5E430E"),
+        ),
+    }
+
+
 def normalize_pdf_text(value: str) -> str:
     return (
         value.replace("–", "-")
@@ -196,6 +273,151 @@ def inline_markup(value: str) -> str:
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", escaped)
     escaped = re.sub(r"`(.+?)`", r"<font name='Courier'>\1</font>", escaped)
     return escaped
+
+
+def parse_one_page_markdown(path: Path):
+    lines = path.read_text(encoding="utf-8").splitlines()
+    title = lines[0].removeprefix("# ").strip()
+    subtitle = next((line.strip() for line in lines[1:] if line.strip()), "")
+    sections: list[tuple[str, list[tuple[str, str]]]] = []
+    current_title = ""
+    current_items: list[tuple[str, str]] = []
+
+    for raw_line in lines[2:]:
+        line = raw_line.strip()
+        if line.startswith("## "):
+            if current_title:
+                sections.append((current_title, current_items))
+            current_title = line[3:].strip()
+            current_items = []
+        elif line.startswith("- "):
+            current_items.append(("bullet", line[2:].strip()))
+        elif line.startswith("> "):
+            current_items.append(("callout", line[2:].strip()))
+        elif line and current_title:
+            current_items.append(("bullet", line))
+
+    if current_title:
+        sections.append((current_title, current_items))
+    return title, subtitle, sections
+
+
+def one_page_card(title: str, items: list[tuple[str, str]], styles, width: float):
+    content = [Paragraph(inline_markup(title), styles["card_title"])]
+    for kind, value in items:
+        if kind == "callout":
+            callout = Table(
+                [[Paragraph(inline_markup(value), styles["callout"])]],
+                colWidths=[width - 8 * mm],
+            )
+            callout.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), AMBER_LIGHT),
+                        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#E9C66A")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 5),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ]
+                )
+            )
+            content.extend([Spacer(1, 2), callout])
+        else:
+            content.append(
+                Paragraph(f"•&nbsp;&nbsp;{inline_markup(value)}", styles["bullet"])
+            )
+
+    card = Table([[content]], colWidths=[width])
+    card.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), WHITE),
+                ("BOX", (0, 0), (-1, -1), 0.6, LINE),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
+    return card
+
+
+def draw_one_page(canvas, document):
+    width, height = A4
+    canvas.saveState()
+    canvas.setFillColor(PAPER)
+    canvas.rect(0, 0, width, height, fill=1, stroke=0)
+    canvas.setFillColor(BLUE)
+    canvas.rect(0, height - 6 * mm, width, 6 * mm, fill=1, stroke=0)
+    canvas.setStrokeColor(LINE)
+    canvas.line(12 * mm, 10 * mm, width - 12 * mm, 10 * mm)
+    canvas.setFont(document.one_page_font, 7)
+    canvas.setFillColor(MUTED)
+    canvas.drawString(12 * mm, 6.5 * mm, "Внутренняя памятка • AIJ Project Console")
+    canvas.drawRightString(width - 12 * mm, 6.5 * mm, "Июль 2026")
+    canvas.restoreState()
+
+
+def generate_one_page(source_name: str, output_name: str, role: str) -> None:
+    source = GUIDES_DIR / "one-page" / source_name
+    output = OUTPUT_DIR / output_name
+    output.parent.mkdir(parents=True, exist_ok=True)
+    font_family = "DirectorOneSans" if role == "директоров" else "CsmOneSans"
+    styles = build_one_page_styles(font_family)
+    title, subtitle, sections = parse_one_page_markdown(source)
+
+    document = SimpleDocTemplate(
+        str(output),
+        pagesize=A4,
+        leftMargin=12 * mm,
+        rightMargin=12 * mm,
+        topMargin=11 * mm,
+        bottomMargin=13 * mm,
+        title=title,
+        author="AIJ Project Console",
+        subject=f"Краткий гайд для {role}",
+    )
+    content_width = A4[0] - document.leftMargin - document.rightMargin
+    document.one_page_font = font_family
+    gap = 4 * mm
+    column_width = (content_width - gap) / 2
+    columns: list[list] = [[], []]
+    split_at = (len(sections) + 1) // 2
+
+    for index, (section_title, items) in enumerate(sections):
+        column = 0 if index < split_at else 1
+        if columns[column]:
+            columns[column].append(Spacer(1, 4 * mm))
+        columns[column].append(one_page_card(section_title, items, styles, column_width))
+
+    layout = Table(
+        [[columns[0], columns[1]]],
+        colWidths=[column_width, column_width],
+        hAlign="LEFT",
+    )
+    layout.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (0, -1), 0),
+                ("RIGHTPADDING", (0, 0), (0, -1), gap / 2),
+                ("LEFTPADDING", (1, 0), (1, -1), gap / 2),
+                ("RIGHTPADDING", (1, 0), (1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+    story = [
+        Paragraph("БЫСТРЫЙ СТАРТ • 1 СТРАНИЦА", styles["kicker"]),
+        Paragraph(html.escape(normalize_pdf_text(title)), styles["title"]),
+        Paragraph(html.escape(normalize_pdf_text(subtitle)), styles["subtitle"]),
+        layout,
+    ]
+    document.build(story, onFirstPage=draw_one_page)
+    print(f"Generated {output.relative_to(ROOT)}")
 
 
 def cover_story(title: str, audience: str, styles):
@@ -392,6 +614,10 @@ def main() -> None:
     register_fonts()
     generate("director-guide.md", "director-guide.pdf", "директоров")
     generate("csm-guide.md", "csm-guide.pdf", "CSM")
+    generate_one_page(
+        "director-one-page.md", "director-one-page.pdf", "директоров"
+    )
+    generate_one_page("csm-one-page.md", "csm-one-page.pdf", "CSM")
 
 
 if __name__ == "__main__":
