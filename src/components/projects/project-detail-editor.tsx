@@ -223,6 +223,7 @@ export function ProjectDetailEditor({
   const [showAiPassportWarning, setShowAiPassportWarning] = useState(false);
   const [remoteAutofillId, setRemoteAutofillId] = useState<string | null>(null);
   const [isAutofillBusy, setIsAutofillBusy] = useState(false);
+  const isAutofillInProgress = isAutofillBusy || Boolean(remoteAutofillId);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [isDocumentBusy, setIsDocumentBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -240,6 +241,28 @@ export function ProjectDetailEditor({
     initialForm,
     storageKey: `aij-project-draft:${draftOwnerKey}:${project.id}`,
   });
+
+  useEffect(() => {
+    if (!isEditing) {
+      setForm(initialForm);
+    }
+  }, [initialForm, isEditing]);
+
+  function applyAutofillNarrativeFields(
+    appliedNarrativeFields: Pick<
+      ProjectEditInput,
+      | "flagship_problem_description"
+      | "flagship_solution_description"
+      | "flagship_ai_functionality"
+      | "flagship_innovation_level"
+      | "flagship_innovation_reason"
+    >,
+  ) {
+    setForm((currentForm) => ({
+      ...currentForm,
+      ...appliedNarrativeFields,
+    }));
+  }
 
   function updateField<K extends keyof ProjectEditInput>(
     field: K,
@@ -350,7 +373,24 @@ export function ProjectDetailEditor({
         return;
       }
 
-      window.open(result.url, "_blank", "noopener,noreferrer");
+      // Скачиваем через blob, чтобы имя файла не превращалось в %D0%9F%D0%B0...
+      const response = await fetch(result.url);
+      if (!response.ok) {
+        setPassportError("Не удалось скачать файл паспорта. Попробуйте позже.");
+        return;
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = result.fileName || "Паспорт.xlsx";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      setPassportError("Не удалось скачать файл паспорта. Попробуйте позже.");
     } finally {
       setIsPassportBusy(false);
     }
@@ -420,6 +460,10 @@ export function ProjectDetailEditor({
           return;
         }
 
+        if (finalizeResult.appliedNarrativeFields) {
+          applyAutofillNarrativeFields(finalizeResult.appliedNarrativeFields);
+        }
+
         setPassportMessage(finalizeResult.message);
         setShowAiPassportWarning(true);
         setAutofillStatus("Автозаполнение завершено.");
@@ -442,6 +486,10 @@ export function ProjectDetailEditor({
           setAutofillStatus(null);
           setRemoteAutofillId(null);
           return;
+        }
+
+        if (finalizeResult.appliedNarrativeFields) {
+          applyAutofillNarrativeFields(finalizeResult.appliedNarrativeFields);
         }
 
         setPassportMessage(finalizeResult.message);
@@ -623,7 +671,7 @@ export function ProjectDetailEditor({
           passportError={passportError}
           passportMessage={passportMessage}
           autofillStatus={autofillStatus}
-          isAutofillBusy={isAutofillBusy}
+          isAutofillBusy={isAutofillInProgress}
           showAiPassportWarning={
             showAiPassportWarning || hasAiGeneratedPassportContent(project)
           }
@@ -638,7 +686,7 @@ export function ProjectDetailEditor({
           passportError={passportError}
           passportMessage={passportMessage}
           autofillStatus={autofillStatus}
-          isAutofillBusy={isAutofillBusy}
+          isAutofillBusy={isAutofillInProgress}
           showAiPassportWarning={
             showAiPassportWarning || hasAiGeneratedPassportContent(project)
           }
@@ -1392,14 +1440,14 @@ function PassportProjectBlock({
         >
           {isBusy ? "Готовим..." : "Скачать паспорт"}
         </button>
-        {variant === "edit" ? (
+        {variant === "edit" && !isAutofillBusy ? (
           <button
             className="h-10 w-full rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:bg-indigo-50 disabled:text-indigo-300 sm:w-auto"
-            disabled={isBusy || isAutofillBusy}
+            disabled={isBusy}
             onClick={onAutofillStart}
             type="button"
           >
-            {isAutofillBusy ? "Обрабатываем..." : "Автозаполнить паспорт"}
+            Автозаполнить паспорт
           </button>
         ) : null}
         {variant === "edit" ? (

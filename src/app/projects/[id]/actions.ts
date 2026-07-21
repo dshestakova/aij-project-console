@@ -6,6 +6,7 @@ import { PassportFillerClient } from "@/lib/passport-filler/client";
 import {
   formatInnovateAssessmentReason,
   mapPassportFillerRatingToInnovationLevel,
+  mapPassportFillerStateToFlagshipNarrativeFields,
   mapProjectToPassportFillerInput,
 } from "@/lib/passport-filler/mappers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -88,7 +89,16 @@ export type PassportAutofillStatusResult = {
   projectState?: PassportFillerProjectState;
 };
 
-export type PassportAutofillFinalizeResult = ProjectEditResult;
+export type PassportAutofillFinalizeResult = ProjectEditResult & {
+  appliedNarrativeFields?: Pick<
+    ProjectEditInput,
+    | "flagship_problem_description"
+    | "flagship_solution_description"
+    | "flagship_ai_functionality"
+    | "flagship_innovation_level"
+    | "flagship_innovation_reason"
+  >;
+};
 
 export type ProjectCreateResult = ProjectEditResult & {
   projectId?: string;
@@ -626,6 +636,16 @@ export async function startPassportAutofillAction(
         flagship_innovation_level,
         flagship_uploaded_to_prbr,
         flagship_approved_by_ca,
+        flagship_client_current_state,
+        flagship_current_process,
+        flagship_scope,
+        flagship_client_usage,
+        flagship_result_users,
+        flagship_tech_stack,
+        flagship_available_data,
+        flagship_uncertain_data,
+        flagship_out_of_scope,
+        flagship_competitors,
         csm_id,
         director_id,
         industry_unit_id,
@@ -841,7 +861,7 @@ export async function finalizePassportAutofillAction(
       return registerResult;
     }
 
-    await applyAutofillProjectData({
+    const appliedNarrativeFields = await applyAutofillProjectData({
       supabase,
       changedBy: auth.profile.id,
       projectId,
@@ -860,12 +880,14 @@ export async function finalizePassportAutofillAction(
         message:
           `Требуется помощь: High не достигнут (оценка ${rating}). ` +
           "Excel с паспортом и полным ответом Innovate сохранён в файлы проекта.",
+        appliedNarrativeFields,
       };
     }
 
     return {
       ok: true,
       message: "Автозаполненный паспорт сохранен как новая версия.",
+      appliedNarrativeFields,
     };
   } catch (error) {
     return {
@@ -1049,10 +1071,19 @@ export async function getPassportDownloadUrlAction(
     };
   }
 
+  // Для signed URL — ASCII-имя (иначе браузер показывает %D0%9F%D0%B0...).
+  // Клиент всё равно скачивает blob и ставит нормальное file_name.
+  const asciiDownloadName =
+    passport.file_name
+      .normalize("NFKD")
+      .replace(/[^\x00-\x7F]/g, "")
+      .replace(/[^\w.-]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "Passport.xlsx";
+
   const { data, error } = await supabase.storage
     .from("project-files")
     .createSignedUrl(passport.storage_path, 60, {
-      download: passport.file_name,
+      download: asciiDownloadName,
     });
 
   if (error || !data?.signedUrl) {
@@ -1341,14 +1372,23 @@ async function applyAutofillProjectData({
   projectId: string;
   state: PassportFillerProjectState;
   remoteProjectId: string;
-}) {
-  const working = state.working ?? {};
+}): Promise<
+  Pick<
+    ProjectEditInput,
+    | "flagship_problem_description"
+    | "flagship_solution_description"
+    | "flagship_ai_functionality"
+    | "flagship_innovation_level"
+    | "flagship_innovation_reason"
+  >
+> {
+  const narrativeFields = mapPassportFillerStateToFlagshipNarrativeFields(state);
   const updatePayload: Record<string, string | boolean | null> = {};
   const changes: ChangeDraft[] = [];
 
-  const problem = nullableText(working.problem ?? "");
-  const solution = nullableText(working.solution ?? "");
-  const functionality = nullableText(working.functionality ?? "");
+  const problem = narrativeFields.flagship_problem_description;
+  const solution = narrativeFields.flagship_solution_description;
+  const functionality = narrativeFields.flagship_ai_functionality;
   const innovationLevel = mapPassportFillerRatingToInnovationLevel(
     state.final_assessment?.rating,
   );
@@ -1423,7 +1463,9 @@ async function applyAutofillProjectData({
     .eq("id", projectId);
 
   if (updateError) {
-    return;
+    throw new Error(
+      `Не удалось сохранить поля автозаполнения: ${getActionErrorMessage(updateError)}`,
+    );
   }
 
   await supabase.from("project_changes").insert(
@@ -1436,6 +1478,14 @@ async function applyAutofillProjectData({
       source: "passport_filler",
     })),
   );
+
+  return {
+    flagship_problem_description: problem ?? "",
+    flagship_solution_description: solution ?? "",
+    flagship_ai_functionality: functionality ?? "",
+    flagship_innovation_level: innovationLevel ?? "",
+    flagship_innovation_reason: innovationReason ?? "",
+  };
 }
 
 function toLabelMap<T extends { id: string }>(

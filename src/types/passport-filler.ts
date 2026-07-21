@@ -45,6 +45,7 @@ export type PassportFillerProjectState = {
   status: PassportFillerProjectStatus;
   working?: Partial<PassportFillerProjectInput>;
   source?: Partial<PassportFillerProjectInput>;
+  passport_json?: Partial<PassportFillerProjectInput>;
   final_assessment?: {
     rating?: string;
     rating_reason?: string;
