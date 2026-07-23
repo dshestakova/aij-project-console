@@ -28,6 +28,7 @@ import type {
 
 type ProjectDetailEditorProps = {
   canEdit: boolean;
+  canEditPassportFields?: boolean;
   changes: ProjectChangeItem[];
   currentPassport: ProjectFileItem | null;
   draftOwnerKey: string;
@@ -204,6 +205,7 @@ const flagshipPassportFields: FlagshipPassportField[] = [
 
 export function ProjectDetailEditor({
   canEdit,
+  canEditPassportFields = false,
   changes,
   currentPassport,
   draftOwnerKey,
@@ -654,6 +656,7 @@ export function ProjectDetailEditor({
 
       {isEditing ? (
         <ProjectEditForm
+          canEditPassportFields={canEditPassportFields}
           currentPassport={currentPassport}
           form={form}
           draftStatus={draftStatus}
@@ -790,6 +793,7 @@ function ProjectReadOnlyView({
 
 function ProjectEditForm({
   autofillStatus,
+  canEditPassportFields,
   currentPassport,
   draftStatus,
   form,
@@ -811,6 +815,7 @@ function ProjectEditForm({
   showAiPassportWarning,
 }: {
   autofillStatus: string | null;
+  canEditPassportFields: boolean;
   currentPassport: ProjectFileItem | null;
   draftStatus: string | null;
   form: ProjectEditInput;
@@ -1046,6 +1051,9 @@ function ProjectEditForm({
               </h4>
               <p className="mt-1 text-xs text-slate-500">
                 Заполняются автозаполнением при любом уровне инновационности.
+                {canEditPassportFields
+                  ? ""
+                  : " Редактирование в интерфейсе доступно только администраторам."}
               </p>
               <div className="mt-3 grid gap-4">
                 {passportNarrativeFields.map((field) => (
@@ -1054,6 +1062,7 @@ function ProjectEditForm({
                     label={field.label}
                     onChange={(value) => onChange(field.name, value)}
                     placeholder={field.placeholder}
+                    readOnly={!canEditPassportFields}
                     value={form[field.name]}
                   />
                 ))}
@@ -1064,6 +1073,7 @@ function ProjectEditForm({
               label="Обоснование оценки Innovate"
               onChange={(value) => onChange("flagship_innovation_reason", value)}
               placeholder="Почему Innovate поставил текущий уровень. Заполняется автоматически."
+              readOnly={!canEditPassportFields}
               value={form.flagship_innovation_reason}
             />
 
@@ -1074,6 +1084,7 @@ function ProjectEditForm({
                   label={field.label}
                   onChange={(value) => onChange(field.name, value)}
                   placeholder={field.placeholder}
+                  readOnly={!canEditPassportFields}
                   value={form[field.name]}
                 />
               ))}
@@ -1415,7 +1426,13 @@ function PassportProjectBlock({
       ) : null}
 
       {passportMessage ? (
-        <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+        <p
+          className={`mt-4 rounded-md border p-3 text-sm ${
+            passportMessage.startsWith("Требуется помощь")
+              ? "border-rose-200 bg-rose-50 text-rose-800"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          }`}
+        >
           {passportMessage}
         </p>
       ) : null}
@@ -1532,20 +1549,31 @@ function TextareaField({
   label,
   onChange,
   placeholder,
+  readOnly = false,
   value,
 }: {
   label: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  readOnly?: boolean;
   value: string;
 }) {
   return (
     <label className="block min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <span className="text-sm font-semibold text-slate-700">{label}</span>
       <textarea
-        className="mt-3 min-h-32 w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
-        onChange={(event) => onChange(event.target.value)}
+        className={`mt-3 min-h-32 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400 ${
+          readOnly
+            ? "cursor-default bg-slate-50 text-slate-700"
+            : "bg-white"
+        }`}
+        onChange={(event) => {
+          if (!readOnly) {
+            onChange(event.target.value);
+          }
+        }}
         placeholder={placeholder}
+        readOnly={readOnly}
         value={value}
       />
     </label>

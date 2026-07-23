@@ -15,6 +15,7 @@ import type {
 } from "@/types/project-registry";
 
 type ProjectCreateFormProps = {
+  canEditPassportFields?: boolean;
   draftOwnerKey: string;
   references: ProjectEditReferences;
 };
@@ -139,6 +140,7 @@ const initialForm: ProjectEditInput = {
 };
 
 export function ProjectCreateForm({
+  canEditPassportFields = false,
   draftOwnerKey,
   references,
 }: ProjectCreateFormProps) {
@@ -413,10 +415,17 @@ export function ProjectCreateForm({
                   label={field.label}
                   onChange={(value) => updateField(field.name, value)}
                   placeholder={field.placeholder}
+                  readOnly={!canEditPassportFields}
                   value={form[field.name]}
                 />
               ))}
             </div>
+            {!canEditPassportFields ? (
+              <p className="text-xs text-slate-500">
+                Поля паспорта в интерфейсе может редактировать только
+                администратор. Их можно заполнить позже автозаполнением.
+              </p>
+            ) : null}
           </div>
         ) : (
           <p className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-500">
@@ -490,20 +499,31 @@ function TextareaField({
   label,
   onChange,
   placeholder,
+  readOnly = false,
   value,
 }: {
   label: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  readOnly?: boolean;
   value: string;
 }) {
   return (
     <label className="block min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <span className="text-sm font-semibold text-slate-700">{label}</span>
       <textarea
-        className="mt-3 min-h-32 w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
-        onChange={(event) => onChange(event.target.value)}
+        className={`mt-3 min-h-32 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400 ${
+          readOnly
+            ? "cursor-default bg-slate-50 text-slate-700"
+            : "bg-white"
+        }`}
+        onChange={(event) => {
+          if (!readOnly) {
+            onChange(event.target.value);
+          }
+        }}
         placeholder={placeholder}
+        readOnly={readOnly}
         value={value}
       />
     </label>

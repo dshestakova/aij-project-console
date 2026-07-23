@@ -29,6 +29,7 @@ export default async function ProjectDetailPage({
   } = await getProjectDetailPageData(id);
   const canEdit =
     currentProfile?.role === "admin" || currentProfile?.role === "editor";
+  const canEditPassportFields = currentProfile?.role === "admin";
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
@@ -56,6 +57,7 @@ export default async function ProjectDetailPage({
           {project ? (
             <ProjectDetailEditor
               canEdit={canEdit}
+              canEditPassportFields={canEditPassportFields}
               changes={changes}
               currentPassport={currentPassport}
               draftOwnerKey={currentProfile?.id ?? user?.email ?? "anonymous"}
