@@ -91,7 +91,6 @@ export default async function NewProjectPage() {
             </section>
           ) : (
             <ProjectCreateForm
-              canEditPassportFields={currentProfile.role === "admin"}
               draftOwnerKey={currentProfile.id ?? user.email ?? "anonymous"}
               references={references}
             />

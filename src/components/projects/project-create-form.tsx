@@ -15,7 +15,6 @@ import type {
 } from "@/types/project-registry";
 
 type ProjectCreateFormProps = {
-  canEditPassportFields?: boolean;
   draftOwnerKey: string;
   references: ProjectEditReferences;
 };
@@ -140,7 +139,6 @@ const initialForm: ProjectEditInput = {
 };
 
 export function ProjectCreateForm({
-  canEditPassportFields = false,
   draftOwnerKey,
   references,
 }: ProjectCreateFormProps) {
@@ -415,17 +413,10 @@ export function ProjectCreateForm({
                   label={field.label}
                   onChange={(value) => updateField(field.name, value)}
                   placeholder={field.placeholder}
-                  readOnly={!canEditPassportFields}
                   value={form[field.name]}
                 />
               ))}
             </div>
-            {!canEditPassportFields ? (
-              <p className="text-xs text-slate-500">
-                Поля паспорта в интерфейсе может редактировать только
-                администратор. Их можно заполнить позже автозаполнением.
-              </p>
-            ) : null}
           </div>
         ) : (
           <p className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-500">

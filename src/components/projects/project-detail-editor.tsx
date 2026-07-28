@@ -1084,7 +1084,6 @@ function ProjectEditForm({
                   label={field.label}
                   onChange={(value) => onChange(field.name, value)}
                   placeholder={field.placeholder}
-                  readOnly={!canEditPassportFields}
                   value={form[field.name]}
                 />
               ))}
