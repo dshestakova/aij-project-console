@@ -35,17 +35,24 @@ PASSPORT_FILLER_RETRY_COUNT=2
   Возвращает текущее состояние пайплайна (`status`, `working`, `final_assessment`, `error`).
 - `GET /api/projects/{id}/passport.xlsx`  
   Возвращает итоговый `.xlsx` паспорт.
+- `POST /api/projects/boost-to-high`  
+  Админская докрутка: GigaChat органично вставляет маркер  
+  `с использованием генеративного ИИ на базе GigaChat` в `functionality`,  
+  затем один прогон Innovate **без** improve-loop.  
+  Ответ: `{ functionality, rating, rating_reason, path_to_high, assessment }`.
 
 ## Поведение UI
 
 1. В режиме редактирования проекта появляется кнопка `Автозаполнить паспорт`.
-2. UI показывает промежуточный статус (`queued/processing/improve_loop`).
-3. При `completed` backend автоматически:
+2. У `admin` также есть `Докрутить до High` — синхронный вызов `boost-to-high`
+   (GigaChat + один Innovate), без очереди improve-loop.
+3. UI показывает промежуточный статус обычного автозаполнения (`queued/processing/improve_loop`).
+4. При `completed` backend автоматически:
    - скачивает `.xlsx` из внешнего сервиса;
    - пишет файл в `project-files` bucket;
    - создаёт новую запись версии в `project_files`;
    - обновляет поля проекта из `working`/`final_assessment`.
-4. Ручная загрузка паспорта остается доступной как fallback.
+5. Ручная загрузка паспорта остается доступной как fallback.
 
 ## Rollout
 

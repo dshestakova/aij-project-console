@@ -1,6 +1,7 @@
 import { assertPassportFillerEnv } from "@/lib/env";
 import {
   PassportFillerError,
+  type PassportFillerBoostToHighResponse,
   type PassportFillerCreateProjectResponse,
   type PassportFillerProjectInput,
   type PassportFillerProjectState,
@@ -11,6 +12,7 @@ type RequestOptions = {
   method?: "GET" | "POST";
   body?: unknown;
   acceptBinary?: boolean;
+  timeoutMs?: number;
 };
 
 export class PassportFillerClient {
@@ -44,6 +46,18 @@ export class PassportFillerClient {
     });
   }
 
+  async boostToHigh(
+    payload: PassportFillerProjectInput,
+  ): Promise<PassportFillerBoostToHighResponse> {
+    // GigaChat + один Innovate-прогон обычно дольше обычного CRUD.
+    const timeoutMs = Math.max(this.timeoutMs, 180_000);
+    return this.request<PassportFillerBoostToHighResponse>("/projects/boost-to-high", {
+      method: "POST",
+      body: payload,
+      timeoutMs,
+    });
+  }
+
   async getProject(projectId: string): Promise<PassportFillerProjectState> {
     return this.request<PassportFillerProjectState>(`/projects/${projectId}`);
   }
@@ -65,7 +79,7 @@ export class PassportFillerClient {
         const controller = new AbortController();
         const timeoutHandle = setTimeout(() => {
           controller.abort();
-        }, this.timeoutMs);
+        }, options.timeoutMs ?? this.timeoutMs);
 
         try {
           const response = await fetch(`${this.baseUrl}${this.apiPrefix}${path}`, {

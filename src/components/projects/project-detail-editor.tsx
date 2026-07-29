@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import {
+  boostPassportToHighAction,
   finalizePassportAutofillAction,
   getPassportAutofillStatusAction,
   getPassportDownloadUrlAction,
@@ -419,6 +420,44 @@ export function ProjectDetailEditor({
     }
   }
 
+  async function handleBoostPassportToHigh() {
+    setPassportError(null);
+    setPassportMessage(null);
+    setAutofillStatus(
+      "GigaChat встраивает маркер и Innovate оценивает проект (один прогон)...",
+    );
+    setIsAutofillBusy(true);
+
+    try {
+      const boostResult = await boostPassportToHighAction(
+        project.id,
+        form.flagship_ai_functionality,
+      );
+      if (!boostResult.ok) {
+        setPassportError(boostResult.message);
+        setAutofillStatus(null);
+        return;
+      }
+
+      setForm((currentForm) => ({
+        ...currentForm,
+        flagship_ai_functionality:
+          boostResult.functionality ?? currentForm.flagship_ai_functionality,
+        flagship_innovation_level:
+          boostResult.innovationLevel ?? currentForm.flagship_innovation_level,
+        flagship_innovation_reason:
+          boostResult.innovationReason ?? currentForm.flagship_innovation_reason,
+      }));
+
+      setPassportMessage(boostResult.message);
+      setShowAiPassportWarning(true);
+      setAutofillStatus(null);
+      router.refresh();
+    } finally {
+      setIsAutofillBusy(false);
+    }
+  }
+
   useEffect(() => {
     if (!remoteAutofillId) {
       return;
@@ -656,6 +695,7 @@ export function ProjectDetailEditor({
 
       {isEditing ? (
         <ProjectEditForm
+          canBoostToHigh={canEditPassportFields}
           canEditPassportFields={canEditPassportFields}
           currentPassport={currentPassport}
           form={form}
@@ -663,6 +703,7 @@ export function ProjectDetailEditor({
           hasPendingDraft={hasPendingDraft}
           isPending={isPending}
           isPassportBusy={isPassportBusy}
+          onBoostToHigh={handleBoostPassportToHigh}
           onCancel={handleCancel}
           onChange={updateField}
           onDiscardDraft={discardDraft}
@@ -793,6 +834,7 @@ function ProjectReadOnlyView({
 
 function ProjectEditForm({
   autofillStatus,
+  canBoostToHigh,
   canEditPassportFields,
   currentPassport,
   draftStatus,
@@ -801,6 +843,7 @@ function ProjectEditForm({
   isAutofillBusy,
   isPending,
   isPassportBusy,
+  onBoostToHigh,
   onCancel,
   onChange,
   onDiscardDraft,
@@ -815,6 +858,7 @@ function ProjectEditForm({
   showAiPassportWarning,
 }: {
   autofillStatus: string | null;
+  canBoostToHigh: boolean;
   canEditPassportFields: boolean;
   currentPassport: ProjectFileItem | null;
   draftStatus: string | null;
@@ -823,6 +867,7 @@ function ProjectEditForm({
   isAutofillBusy: boolean;
   isPending: boolean;
   isPassportBusy: boolean;
+  onBoostToHigh: () => void;
   onCancel: () => void;
   onChange: <K extends keyof ProjectEditInput>(
     field: K,
@@ -1028,10 +1073,12 @@ function ProjectEditForm({
 
             <PassportProjectBlock
               autofillStatus={autofillStatus}
+              canBoostToHigh={canBoostToHigh}
               currentPassport={currentPassport}
               isAutofillBusy={isAutofillBusy}
               isBusy={isPassportBusy}
               onAutofillStart={onPassportAutofillStart}
+              onBoostToHigh={onBoostToHigh}
               onDownload={onPassportDownload}
               onPassportUploadedChange={(value) =>
                 onChange("flagship_passport_uploaded", value)
@@ -1326,10 +1373,12 @@ function InnovateAssessmentBlock({ project }: { project: ProjectDetail }) {
 
 function PassportProjectBlock({
   autofillStatus,
+  canBoostToHigh = false,
   currentPassport,
   isAutofillBusy,
   isBusy,
   onAutofillStart,
+  onBoostToHigh,
   onDownload,
   onPassportUploadedChange,
   onUpload,
@@ -1339,10 +1388,12 @@ function PassportProjectBlock({
   variant,
 }: {
   autofillStatus: string | null;
+  canBoostToHigh?: boolean;
   currentPassport: ProjectFileItem | null;
   isAutofillBusy: boolean;
   isBusy: boolean;
   onAutofillStart: () => void;
+  onBoostToHigh?: () => void;
   onDownload: () => void;
   onPassportUploadedChange?: (value: boolean) => void;
   onUpload?: (file: File) => void;
@@ -1464,6 +1515,17 @@ function PassportProjectBlock({
             type="button"
           >
             Автозаполнить паспорт
+          </button>
+        ) : null}
+        {variant === "edit" && canBoostToHigh && !isAutofillBusy ? (
+          <button
+            className="h-10 w-full rounded-md border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-900 shadow-sm transition hover:border-amber-300 hover:bg-amber-100 disabled:cursor-not-allowed disabled:bg-amber-50 disabled:text-amber-300 sm:w-auto"
+            disabled={isBusy}
+            onClick={onBoostToHigh}
+            title="GigaChat органично вставит маркер в функциональность GenAI и один раз оценит проект в Innovate"
+            type="button"
+          >
+            Докрутить до High
           </button>
         ) : null}
         {variant === "edit" ? (

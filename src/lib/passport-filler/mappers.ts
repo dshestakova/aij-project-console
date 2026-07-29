@@ -179,3 +179,44 @@ export function mapPassportFillerStateToFlagshipNarrativeFields(
     flagship_ai_functionality: functionality || null,
   };
 }
+
+export const GIGACHAT_HIGH_BOOST_PHRASE =
+  "с использованием генеративного ИИ на базе GigaChat";
+
+/**
+ * @deprecated Локальная вставка больше не используется в UI.
+ * Докрутка идёт через passport_filler POST /projects/boost-to-high (GigaChat + 1× Innovate).
+ */
+export function ensureGigaChatHighBoostPhrase(
+  text: string | null | undefined,
+): { next: string; changed: boolean; alreadyPresent: boolean } {
+  const phrase = GIGACHAT_HIGH_BOOST_PHRASE;
+  const current = text?.trim() ?? "";
+  const alreadyPresent = current.toLowerCase().includes(phrase.toLowerCase());
+
+  if (alreadyPresent) {
+    return { next: current, changed: false, alreadyPresent: true };
+  }
+
+  if (!current) {
+    return {
+      next: `Функциональность реализована ${phrase}.`,
+      changed: true,
+      alreadyPresent: false,
+    };
+  }
+
+  if (/[.!?…]$/u.test(current)) {
+    return {
+      next: `${current.slice(0, -1)}, ${phrase}${current.slice(-1)}`,
+      changed: true,
+      alreadyPresent: false,
+    };
+  }
+
+  return {
+    next: `${current}, ${phrase}.`,
+    changed: true,
+    alreadyPresent: false,
+  };
+}

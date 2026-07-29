@@ -40,6 +40,24 @@ export type PassportFillerStartResponse = {
   queued: boolean;
 };
 
+export type PassportFillerBoostToHighResponse = {
+  ok: boolean;
+  phrase?: string;
+  functionality: string;
+  working?: Partial<PassportFillerProjectInput>;
+  assessment?: {
+    rating?: string;
+    rating_reason?: string;
+    recommendations?: string;
+    csm_argument?: string;
+    analogues?: Array<Record<string, unknown>>;
+    path_to_high?: string[];
+  };
+  rating?: string;
+  rating_reason?: string;
+  path_to_high?: string[];
+};
+
 export type PassportFillerProjectState = {
   id: string;
   status: PassportFillerProjectStatus;

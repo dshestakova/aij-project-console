@@ -81,6 +81,15 @@ export type PassportAutofillStartResult = {
   remoteProjectId?: string;
 };
 
+export type PassportBoostToHighResult = {
+  ok: boolean;
+  message: string;
+  functionality?: string;
+  innovationLevel?: string | null;
+  innovationReason?: string | null;
+  rating?: string;
+};
+
 export type PassportAutofillStatusResult = {
   ok: boolean;
   message: string;
@@ -709,6 +718,193 @@ export async function startPassportAutofillAction(
     return {
       ok: false,
       message: `Не удалось запустить автозаполнение: ${getActionErrorMessage(error)}`,
+    };
+  }
+}
+
+export async function boostPassportToHighAction(
+  projectId: string,
+  currentFunctionality?: string,
+): Promise<PassportBoostToHighResult> {
+  const supabase = await createServerSupabaseClient();
+  const auth = await requireEditorProfile(
+    supabase,
+    "Нужно войти в систему, чтобы докрутить паспорт до High.",
+    "У вас нет прав на докрутку паспорта до High.",
+  );
+  if (!auth.ok) {
+    return auth.result;
+  }
+
+  if (auth.profile.role !== "admin") {
+    return {
+      ok: false,
+      message: "Докрутка до High доступна только администраторам.",
+    };
+  }
+
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .select(
+      `
+        id,
+        external_id,
+        client,
+        project_name,
+        cluster_id,
+        status_id,
+        is_flagship,
+        flagship_status_id,
+        is_archived,
+        essence,
+        progress,
+        next_step,
+        funding,
+        funding_status,
+        comment,
+        flagship_problem_description,
+        flagship_solution_description,
+        flagship_ai_functionality,
+        flagship_description_uploaded,
+        flagship_passport_uploaded,
+        flagship_innovation_level,
+        flagship_innovation_reason,
+        flagship_uploaded_to_prbr,
+        flagship_approved_by_ca,
+        flagship_client_current_state,
+        flagship_current_process,
+        flagship_scope,
+        flagship_client_usage,
+        flagship_result_users,
+        flagship_tech_stack,
+        flagship_available_data,
+        flagship_uncertain_data,
+        flagship_out_of_scope,
+        flagship_competitors,
+        csm_id,
+        director_id,
+        industry_unit_id,
+        updated_at,
+        cluster:clusters(id, name, color_key, sort_order),
+        status:project_statuses(id, name, color_key, sort_order),
+        flagship_status:flagship_statuses(id, name, color_key, sort_order),
+        csm:people!projects_csm_id_fkey(id, full_name, person_type, email),
+        director:people!projects_director_id_fkey(id, full_name, person_type, email),
+        industry_unit:industry_units(id, name)
+      `,
+    )
+    .eq("id", projectId)
+    .maybeSingle();
+
+  if (projectError || !project) {
+    return {
+      ok: false,
+      message: "Не удалось загрузить проект для докрутки до High.",
+    };
+  }
+
+  const mappedProject = {
+    ...(project as unknown as ProjectDetail),
+    flagship_ai_functionality:
+      typeof currentFunctionality === "string"
+        ? currentFunctionality
+        : project.flagship_ai_functionality,
+    cluster: normalizeRelation(project.cluster),
+    status: normalizeRelation(project.status),
+    flagship_status: normalizeRelation(project.flagship_status),
+    csm: normalizeRelation(project.csm),
+    director: normalizeRelation(project.director),
+    industry_unit: normalizeRelation(project.industry_unit),
+  } as unknown as ProjectDetail;
+
+  try {
+    const client = new PassportFillerClient();
+    const payload = mapProjectToPassportFillerInput(mappedProject);
+    const boostResult = await client.boostToHigh(payload);
+
+    const functionality = boostResult.functionality?.trim() || payload.functionality;
+    const rating = boostResult.rating ?? boostResult.assessment?.rating ?? null;
+    const innovationLevel = mapPassportFillerRatingToInnovationLevel(rating);
+    const innovationReason = formatInnovateAssessmentReason({
+      rating_reason:
+        boostResult.rating_reason ?? boostResult.assessment?.rating_reason,
+      path_to_high:
+        boostResult.path_to_high ?? boostResult.assessment?.path_to_high,
+    });
+
+    const updatePayload: Record<string, string | boolean | null> = {
+      flagship_ai_functionality: functionality,
+      flagship_innovation_level: innovationLevel,
+      flagship_innovation_reason: innovationReason,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (innovationLevel === "высокий") {
+      updatePayload.flagship_description_uploaded = Boolean(
+        project.flagship_problem_description &&
+          project.flagship_solution_description &&
+          functionality,
+      );
+    }
+
+    const { error: updateError } = await supabase
+      .from("projects")
+      .update(updatePayload)
+      .eq("id", projectId);
+
+    if (updateError) {
+      return {
+        ok: false,
+        message: `Не удалось сохранить результат докрутки: ${getActionErrorMessage(updateError)}`,
+      };
+    }
+
+    await supabase.from("project_changes").insert([
+      {
+        project_id: projectId,
+        changed_by: auth.profile.id,
+        field_name: "passport_high_boost",
+        old_value: null,
+        new_value: `rating=${rating ?? "—"}; level=${innovationLevel ?? "—"}`,
+        source: "passport_filler_high_boost",
+      },
+      {
+        project_id: projectId,
+        changed_by: auth.profile.id,
+        field_name: "flagship_ai_functionality",
+        old_value: project.flagship_ai_functionality,
+        new_value: functionality,
+        source: "passport_filler_high_boost",
+      },
+      {
+        project_id: projectId,
+        changed_by: auth.profile.id,
+        field_name: "flagship_innovation_level",
+        old_value: project.flagship_innovation_level,
+        new_value: innovationLevel,
+        source: "passport_filler_high_boost",
+      },
+    ]);
+
+    revalidatePath(`/projects/${projectId}`);
+    revalidatePath("/projects");
+    revalidatePath("/dashboard");
+
+    const ratingLabel = rating?.trim() || "—";
+    const levelLabel = innovationLevel ?? "не указан";
+
+    return {
+      ok: true,
+      message: `Докрутка завершена. Innovate: ${ratingLabel} → инновационность «${levelLabel}».`,
+      functionality,
+      innovationLevel,
+      innovationReason,
+      rating: rating ?? undefined,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: `Не удалось докрутить до High: ${getActionErrorMessage(error)}`,
     };
   }
 }
