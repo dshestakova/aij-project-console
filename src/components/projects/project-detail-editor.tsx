@@ -919,6 +919,12 @@ function ProjectEditForm({
         </p>
       ) : null}
 
+      <ProjectEditActions
+        isPending={isPending}
+        onCancel={onCancel}
+        position="top"
+      />
+
       <CollapsibleSection defaultOpen title="Основная информация">
         <div className="grid gap-4 lg:grid-cols-3">
           <TextField
@@ -1144,7 +1150,28 @@ function ProjectEditForm({
         )}
       </CollapsibleSection>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+      <ProjectEditActions isPending={isPending} onCancel={onCancel} />
+    </form>
+  );
+}
+
+function ProjectEditActions({
+  isPending,
+  onCancel,
+  position = "bottom",
+}: {
+  isPending: boolean;
+  onCancel: () => void;
+  position?: "top" | "bottom";
+}) {
+  return (
+    <div
+      className={`flex flex-col gap-3 sm:flex-row sm:justify-end ${
+        position === "top"
+          ? "border-b border-slate-200 pb-4"
+          : "border-t border-slate-200 pt-4"
+      }`}
+    >
         <button
           className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-400"
           disabled={isPending}
@@ -1161,7 +1188,6 @@ function ProjectEditForm({
           {isPending ? "Сохраняем..." : "Сохранить"}
         </button>
       </div>
-    </form>
   );
 }
 
@@ -1169,50 +1195,63 @@ function ProjectChangeHistory({ changes }: { changes: ProjectChangeItem[] }) {
   const groups = groupChanges(changes);
 
   return (
-    <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-lg font-semibold text-slate-950">
-        История изменений
-      </h3>
-      {groups.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">
-          История изменений пока пустая.
-        </p>
-      ) : (
-        <div className="mt-4 flex flex-col gap-3">
-          {groups.map((group) => (
-            <article
-              className="rounded-md border border-slate-100 bg-slate-50 p-3"
-              key={group.key}
-            >
-              <p className="text-sm leading-6 text-slate-700">
-                <span className="font-medium text-slate-950">
-                  {formatDateTime(group.changedAt)}, {group.userLabel}
-                </span>{" "}
-                — изменены поля: {group.fieldLabels.join(", ")}
-              </p>
-              <details className="mt-2">
-                <summary className="cursor-pointer text-xs font-medium text-slate-500">
-                  Показать детали
-                </summary>
-                <dl className="mt-2 flex flex-col gap-2">
-                  {group.items.map((item) => (
-                    <div className="text-xs text-slate-600" key={item.id}>
-                      <dt className="font-medium text-slate-700">
-                        {getFieldLabel(item.field_name)}
-                      </dt>
-                      <dd className="mt-1 whitespace-pre-wrap">
-                        {getDisplayValue(item.old_value)} -&gt;{" "}
-                        {getDisplayValue(item.new_value)}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </details>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
+    <details className="group min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 text-lg font-semibold text-slate-950">
+        <span>История изменений</span>
+        <span className="flex items-center gap-3">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+            {groups.length}
+          </span>
+          <span
+            aria-hidden="true"
+            className="text-sm text-slate-400 transition group-open:rotate-180"
+          >
+            ▼
+          </span>
+        </span>
+      </summary>
+      <div className="border-t border-slate-200 px-5 pb-5">
+        {groups.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500">
+            История изменений пока пустая.
+          </p>
+        ) : (
+          <div className="mt-4 flex flex-col gap-3">
+            {groups.map((group) => (
+              <article
+                className="rounded-md border border-slate-100 bg-slate-50 p-3"
+                key={group.key}
+              >
+                <p className="text-sm leading-6 text-slate-700">
+                  <span className="font-medium text-slate-950">
+                    {formatDateTime(group.changedAt)}, {group.userLabel}
+                  </span>{" "}
+                  — изменены поля: {group.fieldLabels.join(", ")}
+                </p>
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs font-medium text-slate-500">
+                    Показать детали
+                  </summary>
+                  <dl className="mt-2 flex flex-col gap-2">
+                    {group.items.map((item) => (
+                      <div className="text-xs text-slate-600" key={item.id}>
+                        <dt className="font-medium text-slate-700">
+                          {getFieldLabel(item.field_name)}
+                        </dt>
+                        <dd className="mt-1 whitespace-pre-wrap">
+                          {getDisplayValue(item.old_value)} -&gt;{" "}
+                          {getDisplayValue(item.new_value)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 
