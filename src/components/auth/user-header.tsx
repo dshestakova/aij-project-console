@@ -14,6 +14,7 @@ type UserHeaderProps = {
     | "/projects"
     | "/analytics"
     | "/ai-analyst"
+    | "/admin/activity"
     | "/admin/users"
     | "/admin/references";
   role?: UserRole | null;
@@ -33,6 +34,7 @@ export function UserHeader({ activePath, email, role }: UserHeaderProps) {
     role === "admin"
       ? [
           ...navigationItems,
+          { href: "/admin/activity", label: "Активность" },
           { href: "/admin/users", label: "Пользователи" },
           { href: "/admin/references", label: "Справочники" },
         ]
