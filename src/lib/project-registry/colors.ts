@@ -75,8 +75,20 @@ const statusColorByName: Record<string, string> = {
   "внедрен в прод": chartColorByKey.green,
   "внедрен в промышленную эксплуатацию": chartColorByKey.green,
   "факт оплаты": chartColorByKey.teal,
+  пауза: chartColorByKey.slate,
   "на паузе": chartColorByKey.slate,
   опасно: "#dc2626",
+};
+
+const projectStageOrderByName: Record<string, number> = {
+  "внедрен в прод": 0,
+  "внедрен в промышленную эксплуатацию": 0,
+  "в разработке": 1,
+  "уточнение тз": 2,
+  "идея/кп": 3,
+  пауза: 4,
+  "на паузе": 4,
+  опасно: 5,
 };
 
 const industryUnitColorByName: Record<string, ColorKey> = {
@@ -113,13 +125,17 @@ export function getStatusChartColor(
 ) {
   const normalizedName = normalizeColorName(name);
 
-  if (normalizedName === "опасно") {
+  if (statusColorByName[normalizedName]) {
     return statusColorByName[normalizedName];
   }
 
   return colorKey
     ? getChartColor(colorKey)
-    : statusColorByName[normalizedName] ?? chartColorByKey.gray;
+    : chartColorByKey.gray;
+}
+
+export function getProjectStageOrder(name: string | null | undefined) {
+  return projectStageOrderByName[normalizeColorName(name)] ?? 6;
 }
 
 export function getIndustryUnitColorKey(

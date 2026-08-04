@@ -283,9 +283,8 @@ function CsmMatrix({
       id: string | null,
       name: string | null | undefined,
     ) =>
-      id !== null
-        ? selectedIndustryUnitIdSet.has(id)
-        : selectedIndustryNames.has(normalizeFilterName(name));
+      (id !== null && selectedIndustryUnitIdSet.has(id)) ||
+      selectedIndustryNames.has(normalizeFilterName(name));
 
     if (assignments.length === 0) {
       // Fallback for environments where director_csm_assignments is empty:

@@ -4,6 +4,7 @@ import { getProjectQualityCategory } from "@/lib/project-registry/filters";
 import {
   getChartColor,
   getIndustryUnitColorKey,
+  getProjectStageOrder,
   getStatusChartColor,
 } from "@/lib/project-registry/colors";
 import type {
@@ -105,6 +106,7 @@ export async function getPortfolioAnalyticsData(): Promise<PortfolioAnalyticsDat
       getHref: (id) => `/projects?status=${id}`,
       getColor: (reference) =>
         getStatusChartColor(reference?.name, reference?.color_key),
+      sort: sortProjectStageSegments,
     }),
     industryUnitSegments: buildReferenceSegments({
       projects: activeProjects,
@@ -194,6 +196,7 @@ function buildReferenceSegments({
   getColor,
   getHref,
   getReference,
+  sort = sortSegments,
 }: {
   projects: ProjectListItem[];
   references: ReferenceItem[];
@@ -202,6 +205,10 @@ function buildReferenceSegments({
   getReference: (project: ProjectListItem) => ReferenceItem | null;
   getHref: (id: string) => string;
   getColor: (reference: ReferenceItem | null) => string;
+  sort?: (
+    first: { count: number; label: string },
+    second: { count: number; label: string },
+  ) => number;
 }) {
   const segments = references.map((reference) => ({
     key: reference.id,
@@ -220,7 +227,7 @@ function buildReferenceSegments({
     href: missingHref,
   });
 
-  return segments.sort(sortSegments);
+  return segments.sort(sort);
 }
 
 function buildCsmMatrix(
@@ -279,19 +286,7 @@ function compareCsmProjects(first: ProjectListItem, second: ProjectListItem) {
 }
 
 function getCsmStatusOrder(statusName: string | null | undefined) {
-  const normalizedStatus = normalizeName(statusName);
-  const orderByStatus: Record<string, number> = {
-    "внедрен в прод": 0,
-    "внедрен в промышленную эксплуатацию": 0,
-    "в разработке": 1,
-    "уточнение тз": 2,
-    "идея/кп": 3,
-    опасно: 4,
-    пауза: 5,
-    "на паузе": 5,
-  };
-
-  return orderByStatus[normalizedStatus] ?? 6;
+  return getProjectStageOrder(statusName);
 }
 
 function getCsmProjectSortName(project: ProjectListItem) {
@@ -577,4 +572,14 @@ function sortSegments(first: { count: number; label: string }, second: { count: 
   }
 
   return first.label.localeCompare(second.label, "ru");
+}
+
+function sortProjectStageSegments(
+  first: { count: number; label: string },
+  second: { count: number; label: string },
+) {
+  const orderDifference =
+    getProjectStageOrder(first.label) - getProjectStageOrder(second.label);
+
+  return orderDifference || first.label.localeCompare(second.label, "ru");
 }
