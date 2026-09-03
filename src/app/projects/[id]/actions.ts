@@ -1399,7 +1399,7 @@ export async function generateProjectApplicationAction(
       uploaded_by: auth.profile.id,
       version_number: nextVersion,
       is_current: true,
-      description: `${generated.templateName}; ${generated.mode === "llm" ? "LLM" : "резервные правила"}`,
+      description: `${generated.templateName}; ${generated.mode === "llm" ? "GigaChat" : "резервные правила"}`,
     })
     .select("id")
     .single();

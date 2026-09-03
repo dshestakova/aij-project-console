@@ -89,15 +89,17 @@ Vercel нужен для:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY`
-- `GIGACHAT_AUTH_KEY`
+- `GIGACHAT_CREDENTIALS` (или `GIGACHAT_AUTH_KEY`)
 - `GIGACHAT_SCOPE`
-- `GIGACHAT_API_URL`
+- `GIGACHAT_BASE_URL`
+- `GIGACHAT_AUTH_URL`
+- `GIGACHAT_MODEL`
 
 Правила:
 
 - `NEXT_PUBLIC_*` значения доступны браузеру, поэтому туда нельзя класть server-only secrets.
 - `SUPABASE_SECRET_KEY` должен быть только server-side.
-- `GIGACHAT_AUTH_KEY` должен быть только server-side.
+- `GIGACHAT_CREDENTIALS` / `GIGACHAT_AUTH_KEY` должны быть только server-side.
 - Реальные значения не присылать в чат.
 - Реальные значения не коммитить.
 - Локально реальные значения хранить в `.env.local`.
