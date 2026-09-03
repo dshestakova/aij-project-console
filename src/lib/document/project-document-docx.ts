@@ -2,7 +2,7 @@ import { formatDateTime, getDisplayValue } from "@/lib/project-registry/format";
 import {
   buildProjectApplicationSections,
   getProjectApplicationTypeLabel,
-  PROJECT_APPLICATION_REFERENCE_FILE,
+  type ProjectApplicationSection,
   type ProjectApplicationType,
 } from "@/lib/application/project-application";
 import type { ProjectDetail, ProjectFileItem } from "@/types/project-registry";
@@ -79,8 +79,13 @@ export function getProjectDocumentFilename(project: ProjectDetail) {
 export function buildProjectApplicationDocx(
   project: ProjectDetail,
   applicationType: ProjectApplicationType,
+  applicationSections?: ProjectApplicationSection[],
 ) {
-  const documentXml = buildApplicationDocumentXml(project, applicationType);
+  const documentXml = buildApplicationDocumentXml(
+    project,
+    applicationType,
+    applicationSections,
+  );
   const now = new Date().toISOString();
 
   return createZip([
@@ -209,9 +214,11 @@ function buildDocumentXml(
 function buildApplicationDocumentXml(
   project: ProjectDetail,
   applicationType: ProjectApplicationType,
+  applicationSections?: ProjectApplicationSection[],
 ) {
   const applicationTypeLabel = getProjectApplicationTypeLabel(applicationType);
-  const sections = buildProjectApplicationSections(project, applicationType);
+  const sections =
+    applicationSections ?? buildProjectApplicationSections(project, applicationType);
   const documentParts = [
     paragraph("Заявка по проекту", "Title"),
     paragraph(
@@ -220,11 +227,6 @@ function buildApplicationDocumentXml(
     ),
     table([
       ["Определённый тип заявки", applicationTypeLabel],
-      ["Источник данных", "Карточка проекта AIJ"],
-      [
-        "Эталон структуры",
-        `${PROJECT_APPLICATION_REFERENCE_FILE} (использованы вопросы и стиль; ответы эталона не копируются)`,
-      ],
       ["Дата формирования", formatDateTime(new Date().toISOString())],
       ["Паспорт проекта загружен", bool(project.flagship_passport_uploaded)],
     ]),

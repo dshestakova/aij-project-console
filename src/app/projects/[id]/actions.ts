@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import {
-  classifyProjectApplication,
   getProjectApplicationTypeLabel,
 } from "@/lib/application/project-application";
+import { generateProjectApplicationContent } from "@/lib/application/application-llm";
 import {
   buildProjectApplicationDocx,
   getProjectApplicationFilename,
@@ -1343,10 +1343,15 @@ export async function generateProjectApplicationAction(
     };
   }
 
-  const applicationType = classifyProjectApplication(project);
+  const generated = await generateProjectApplicationContent(project);
+  const applicationType = generated.type;
   const applicationTypeLabel = getProjectApplicationTypeLabel(applicationType);
   const fileName = getProjectApplicationFilename(project, applicationType);
-  const document = buildProjectApplicationDocx(project, applicationType);
+  const document = buildProjectApplicationDocx(
+    project,
+    applicationType,
+    generated.sections,
+  );
   const storagePath = `projects/${projectId}/application/${Date.now()}-application.docx`;
   const mimeType =
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -1382,37 +1387,44 @@ export async function generateProjectApplicationAction(
     };
   }
 
+  const { data: insertedFile, error: fileInsertError } = await supabase
+    .from("project_files")
+    .insert({
+      project_id: projectId,
+      file_type: "application",
+      file_name: fileName,
+      storage_path: storagePath,
+      mime_type: mimeType,
+      size_bytes: document.byteLength,
+      uploaded_by: auth.profile.id,
+      version_number: nextVersion,
+      is_current: true,
+      description: `${generated.templateName}; ${generated.mode === "llm" ? "LLM" : "резервные правила"}`,
+    })
+    .select("id")
+    .single();
+
+  if (fileInsertError) {
+    await supabase.storage.from("project-files").remove([storagePath]);
+    return {
+      ok: false,
+      message: "Заявка загружена, но её метаданные сохранить не удалось.",
+    };
+  }
+
   const { error: previousVersionError } = await supabase
     .from("project_files")
     .update({ is_current: false })
     .eq("project_id", projectId)
     .eq("file_type", "application")
-    .eq("is_current", true);
+    .eq("is_current", true)
+    .neq("id", insertedFile.id);
 
   if (previousVersionError) {
     return {
       ok: false,
-      message: "Заявка загружена, но не удалось обновить предыдущую версию.",
-    };
-  }
-
-  const { error: fileInsertError } = await supabase.from("project_files").insert({
-    project_id: projectId,
-    file_type: "application",
-    file_name: fileName,
-    storage_path: storagePath,
-    mime_type: mimeType,
-    size_bytes: document.byteLength,
-    uploaded_by: auth.profile.id,
-    version_number: nextVersion,
-    is_current: true,
-    description: `Заявка: ${applicationTypeLabel}`,
-  });
-
-  if (fileInsertError) {
-    return {
-      ok: false,
-      message: "Заявка загружена, но её метаданные сохранить не удалось.",
+      message:
+        "Заявка сформирована, но не удалось пометить предыдущую версию как архивную.",
     };
   }
 
@@ -1429,7 +1441,12 @@ export async function generateProjectApplicationAction(
 
   return {
     ok: true,
-    message: `Заявка сформирована и загружена. Тип: ${applicationTypeLabel}.`,
+    message: [
+      `Заявка сформирована и загружена. Тип: ${applicationTypeLabel}.`,
+      generated.warning,
+    ]
+      .filter(Boolean)
+      .join(" "),
     applicationType: applicationTypeLabel,
     fileName,
   };
