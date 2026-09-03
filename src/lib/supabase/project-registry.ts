@@ -341,6 +341,7 @@ export async function getProjectDetailPageData(id: string): Promise<{
   references: ProjectEditReferences;
   changes: ProjectChangeItem[];
   currentProfile: ProfileReference | null;
+  currentApplication: ProjectFileItem | null;
   currentPassport: ProjectFileItem | null;
   errorMessage: string | null;
 }> {
@@ -358,6 +359,7 @@ export async function getProjectDetailPageData(id: string): Promise<{
     industryUnitsResult,
     changesResult,
     passportResult,
+    applicationResult,
     profileResult,
   ] = await Promise.all([
     getProjectDetail(id),
@@ -432,6 +434,32 @@ export async function getProjectDetailPageData(id: string): Promise<{
       .order("uploaded_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("project_files")
+      .select(
+        `
+          id,
+          project_id,
+          file_name,
+          storage_path,
+          mime_type,
+          size_bytes,
+          uploaded_by,
+          uploaded_at,
+          file_type,
+          version_number,
+          is_current,
+          description,
+          profile:profiles!project_files_uploaded_by_fkey(id, email, display_name, role)
+        `,
+      )
+      .eq("project_id", id)
+      .eq("file_type", "application")
+      .eq("is_current", true)
+      .is("deleted_at", null)
+      .order("uploaded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     user
       ? supabase
           .from("profiles")
@@ -449,6 +477,7 @@ export async function getProjectDetailPageData(id: string): Promise<{
     industryUnitsResult.error ??
     changesResult.error ??
     passportResult.error ??
+    applicationResult.error ??
     profileResult.error;
 
   return {
@@ -468,6 +497,14 @@ export async function getProjectDetailPageData(id: string): Promise<{
         profile: normalizeRelation(change.profile),
       }),
     ),
+    currentApplication: applicationResult.data
+      ? {
+          ...((applicationResult.data as unknown as ProjectFileRow) ?? null),
+          profile: normalizeRelation(
+            (applicationResult.data as unknown as ProjectFileRow).profile,
+          ),
+        }
+      : null,
     currentPassport: passportResult.data
       ? {
           ...((passportResult.data as unknown as ProjectFileRow) ?? null),

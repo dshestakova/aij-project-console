@@ -1,4 +1,10 @@
 import { formatDateTime, getDisplayValue } from "@/lib/project-registry/format";
+import {
+  buildProjectApplicationSections,
+  getProjectApplicationTypeLabel,
+  PROJECT_APPLICATION_REFERENCE_FILE,
+  type ProjectApplicationType,
+} from "@/lib/application/project-application";
 import type { ProjectDetail, ProjectFileItem } from "@/types/project-registry";
 
 type ProjectDocumentInput = {
@@ -65,6 +71,61 @@ export function getProjectDocumentFilename(project: ProjectDetail) {
     safeFilenamePart(project.external_id),
     safeFilenamePart(project.project_name ?? project.client ?? "project"),
     "project-document.docx",
+  ]
+    .filter(Boolean)
+    .join("-");
+}
+
+export function buildProjectApplicationDocx(
+  project: ProjectDetail,
+  applicationType: ProjectApplicationType,
+) {
+  const documentXml = buildApplicationDocumentXml(project, applicationType);
+  const now = new Date().toISOString();
+
+  return createZip([
+    {
+      name: "[Content_Types].xml",
+      content: xmlBuffer(contentTypesXml()),
+    },
+    {
+      name: "_rels/.rels",
+      content: xmlBuffer(rootRelsXml()),
+    },
+    {
+      name: "docProps/core.xml",
+      content: xmlBuffer(
+        corePropsXml(project, now, `Заявка — ${project.external_id}`),
+      ),
+    },
+    {
+      name: "docProps/app.xml",
+      content: xmlBuffer(appPropsXml()),
+    },
+    {
+      name: "word/_rels/document.xml.rels",
+      content: xmlBuffer(documentRelsXml()),
+    },
+    {
+      name: "word/styles.xml",
+      content: xmlBuffer(stylesXml()),
+    },
+    {
+      name: "word/document.xml",
+      content: xmlBuffer(documentXml),
+    },
+  ]);
+}
+
+export function getProjectApplicationFilename(
+  project: ProjectDetail,
+  applicationType: ProjectApplicationType,
+) {
+  return [
+    safeFilenamePart(project.external_id),
+    safeFilenamePart(project.project_name ?? project.client ?? "project"),
+    safeFilenamePart(getProjectApplicationTypeLabel(applicationType)),
+    "application.docx",
   ]
     .filter(Boolean)
     .join("-");
@@ -143,6 +204,95 @@ function buildDocumentXml(
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>${documentParts.join("")}</w:body>
 </w:document>`;
+}
+
+function buildApplicationDocumentXml(
+  project: ProjectDetail,
+  applicationType: ProjectApplicationType,
+) {
+  const applicationTypeLabel = getProjectApplicationTypeLabel(applicationType);
+  const sections = buildProjectApplicationSections(project, applicationType);
+  const documentParts = [
+    paragraph("Заявка по проекту", "Title"),
+    paragraph(
+      `${project.external_id} · ${display(project.project_name)}`,
+      "Subtitle",
+    ),
+    table([
+      ["Определённый тип заявки", applicationTypeLabel],
+      ["Источник данных", "Карточка проекта AIJ"],
+      [
+        "Эталон структуры",
+        `${PROJECT_APPLICATION_REFERENCE_FILE} (использованы вопросы и стиль; ответы эталона не копируются)`,
+      ],
+      ["Дата формирования", formatDateTime(new Date().toISOString())],
+      ["Паспорт проекта загружен", bool(project.flagship_passport_uploaded)],
+    ]),
+    ...sections.flatMap((section) => [
+      heading(section.title),
+      ...section.fields.map(([question, response]) =>
+        applicationQuestion(question, response),
+      ),
+    ]),
+    sectionProperties(),
+  ];
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>${documentParts.join("")}</w:body>
+</w:document>`;
+}
+
+function applicationQuestion(question: string, response: string) {
+  return `${heading(question, "Heading3")}${applicationAnswerBox(response)}`;
+}
+
+function applicationAnswerBox(value: string) {
+  return `<w:tbl>
+    <w:tblPr>
+      <w:tblW w:w="5000" w:type="pct"/>
+      <w:tblBorders>
+        <w:top w:val="single" w:sz="6" w:space="0" w:color="D8DEE9"/>
+        <w:left w:val="single" w:sz="6" w:space="0" w:color="D8DEE9"/>
+        <w:bottom w:val="single" w:sz="6" w:space="0" w:color="D8DEE9"/>
+        <w:right w:val="single" w:sz="6" w:space="0" w:color="D8DEE9"/>
+      </w:tblBorders>
+    </w:tblPr>
+    <w:tr><w:tc>
+      <w:tcPr><w:tcW w:w="100" w:type="pct"/><w:shd w:fill="F8FAFC"/></w:tcPr>
+      <w:p>${taggedRuns(value)}</w:p>
+    </w:tc></w:tr>
+  </w:tbl>`;
+}
+
+function taggedRuns(value: string) {
+  const tags = [
+    { label: "ПОДТВЕРЖДЕНО:", color: "166534", fill: "DCFCE7" },
+    { label: "РАБОЧИЙ ОТВЕТ:", color: "1D4ED8", fill: "DBEAFE" },
+    { label: "ДЛЯ КЛИЕНТА — УТОЧНИТЬ:", color: "9A3412", fill: "FFEDD5" },
+    { label: "НУЖЕН ВВОД КЛИЕНТА:", color: "991B1B", fill: "FEE2E2" },
+    { label: "СОГЛАСОВАТЬ РАСКРЫТИЕ:", color: "6B21A8", fill: "F3E8FF" },
+  ];
+  const pattern = new RegExp(
+    `(${tags.map(({ label }) => escapeRegExp(label)).join("|")})`,
+    "g",
+  );
+
+  return value
+    .split(pattern)
+    .filter(Boolean)
+    .map((part) => {
+      const tag = tags.find(({ label }) => label === part);
+      const runProperties = tag
+        ? `<w:rPr><w:b/><w:color w:val="${tag.color}"/><w:shd w:fill="${tag.fill}"/><w:sz w:val="18"/></w:rPr>`
+        : "";
+      return `<w:r>${runProperties}<w:t xml:space="preserve">${escapeXml(part)}</w:t></w:r>`;
+    })
+    .join("");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function heading(text: string, style = "Heading2") {
@@ -266,12 +416,14 @@ function documentRelsXml() {
 </Relationships>`;
 }
 
-function corePropsXml(project: ProjectDetail, timestamp: string) {
+function corePropsXml(
+  project: ProjectDetail,
+  timestamp: string,
+  title = `${project.external_id} — ${display(project.project_name)}`,
+) {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:title>${escapeXml(project.external_id)} — ${escapeXml(
-    display(project.project_name),
-  )}</dc:title>
+  <dc:title>${escapeXml(title)}</dc:title>
   <dc:creator>AIJ Project Console</dc:creator>
   <cp:lastModifiedBy>AIJ Project Console</cp:lastModifiedBy>
   <dcterms:created xsi:type="dcterms:W3CDTF">${timestamp}</dcterms:created>

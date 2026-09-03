@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   boostPassportToHighAction,
   finalizePassportAutofillAction,
+  generateProjectApplicationAction,
   getPassportAutofillStatusAction,
   getPassportDownloadUrlAction,
   type ProjectEditInput,
@@ -31,6 +32,7 @@ type ProjectDetailEditorProps = {
   canEdit: boolean;
   canEditPassportFields?: boolean;
   changes: ProjectChangeItem[];
+  currentApplication: ProjectFileItem | null;
   currentPassport: ProjectFileItem | null;
   draftOwnerKey: string;
   project: ProjectDetail;
@@ -208,6 +210,7 @@ export function ProjectDetailEditor({
   canEdit,
   canEditPassportFields = false,
   changes,
+  currentApplication,
   currentPassport,
   draftOwnerKey,
   project,
@@ -229,6 +232,9 @@ export function ProjectDetailEditor({
   const isAutofillInProgress = isAutofillBusy || Boolean(remoteAutofillId);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [isDocumentBusy, setIsDocumentBusy] = useState(false);
+  const [applicationMessage, setApplicationMessage] = useState<string | null>(null);
+  const [applicationError, setApplicationError] = useState<string | null>(null);
+  const [isApplicationBusy, setIsApplicationBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
@@ -600,6 +606,28 @@ export function ProjectDetailEditor({
     }
   }
 
+  async function handleGenerateApplication() {
+    setApplicationMessage(null);
+    setApplicationError(null);
+    setIsApplicationBusy(true);
+
+    try {
+      const result = await generateProjectApplicationAction(project.id);
+
+      if (!result.ok) {
+        setApplicationError(result.message);
+        return;
+      }
+
+      setApplicationMessage(result.message);
+      router.refresh();
+    } catch {
+      setApplicationError("Не удалось сформировать заявку. Попробуйте позже.");
+    } finally {
+      setIsApplicationBusy(false);
+    }
+  }
+
   return (
     <>
       <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -695,18 +723,24 @@ export function ProjectDetailEditor({
 
       {isEditing ? (
         <ProjectEditForm
+          applicationError={applicationError}
+          applicationMessage={applicationMessage}
+          applicationReady={project.flagship_passport_uploaded}
           canBoostToHigh={canEditPassportFields}
           canEditPassportFields={canEditPassportFields}
+          currentApplication={currentApplication}
           currentPassport={currentPassport}
           form={form}
           draftStatus={draftStatus}
           hasPendingDraft={hasPendingDraft}
           isPending={isPending}
+          isApplicationBusy={isApplicationBusy}
           isPassportBusy={isPassportBusy}
           onBoostToHigh={handleBoostPassportToHigh}
           onCancel={handleCancel}
           onChange={updateField}
           onDiscardDraft={discardDraft}
+          onGenerateApplication={handleGenerateApplication}
           onPassportDownload={handlePassportDownload}
           onPassportAutofillStart={handleStartPassportAutofill}
           onPassportUpload={handlePassportUpload}
@@ -723,8 +757,14 @@ export function ProjectDetailEditor({
         />
       ) : (
         <ProjectReadOnlyView
+          applicationError={applicationError}
+          applicationMessage={applicationMessage}
+          canGenerateApplication={canEdit}
+          currentApplication={currentApplication}
           currentPassport={currentPassport}
+          isApplicationBusy={isApplicationBusy}
           isPassportBusy={isPassportBusy}
+          onGenerateApplication={handleGenerateApplication}
           onPassportDownload={handlePassportDownload}
           onPassportAutofillStart={handleStartPassportAutofill}
           passportError={passportError}
@@ -744,10 +784,16 @@ export function ProjectDetailEditor({
 }
 
 function ProjectReadOnlyView({
+  applicationError,
+  applicationMessage,
   autofillStatus,
+  canGenerateApplication,
+  currentApplication,
   currentPassport,
   isAutofillBusy,
+  isApplicationBusy,
   isPassportBusy,
+  onGenerateApplication,
   onPassportAutofillStart,
   onPassportDownload,
   passportError,
@@ -755,10 +801,16 @@ function ProjectReadOnlyView({
   project,
   showAiPassportWarning,
 }: {
+  applicationError: string | null;
+  applicationMessage: string | null;
   autofillStatus: string | null;
+  canGenerateApplication: boolean;
+  currentApplication: ProjectFileItem | null;
   currentPassport: ProjectFileItem | null;
   isAutofillBusy: boolean;
+  isApplicationBusy: boolean;
   isPassportBusy: boolean;
+  onGenerateApplication: () => void;
   onPassportAutofillStart: () => void;
   onPassportDownload: () => void;
   passportError: string | null;
@@ -807,12 +859,19 @@ function ProjectReadOnlyView({
       <PassportNarrativeDetails project={project} />
       {project.is_flagship ? <FlagshipPassportDetails project={project} /> : null}
       <PassportProjectBlock
+        applicationError={applicationError}
+        applicationMessage={applicationMessage}
+        applicationReady={project.flagship_passport_uploaded}
         autofillStatus={autofillStatus}
+        canGenerateApplication={canGenerateApplication}
+        currentApplication={currentApplication}
         currentPassport={currentPassport}
         isAutofillBusy={isAutofillBusy}
+        isApplicationBusy={isApplicationBusy}
         isBusy={isPassportBusy}
         onAutofillStart={onPassportAutofillStart}
         onDownload={onPassportDownload}
+        onGenerateApplication={onGenerateApplication}
         passportUploaded={project.flagship_passport_uploaded}
         passportError={passportError}
         passportMessage={passportMessage}
@@ -833,20 +892,26 @@ function ProjectReadOnlyView({
 }
 
 function ProjectEditForm({
+  applicationError,
+  applicationMessage,
+  applicationReady,
   autofillStatus,
   canBoostToHigh,
   canEditPassportFields,
+  currentApplication,
   currentPassport,
   draftStatus,
   form,
   hasPendingDraft,
   isAutofillBusy,
+  isApplicationBusy,
   isPending,
   isPassportBusy,
   onBoostToHigh,
   onCancel,
   onChange,
   onDiscardDraft,
+  onGenerateApplication,
   onPassportAutofillStart,
   onPassportDownload,
   onPassportUpload,
@@ -857,14 +922,19 @@ function ProjectEditForm({
   references,
   showAiPassportWarning,
 }: {
+  applicationError: string | null;
+  applicationMessage: string | null;
+  applicationReady: boolean;
   autofillStatus: string | null;
   canBoostToHigh: boolean;
   canEditPassportFields: boolean;
+  currentApplication: ProjectFileItem | null;
   currentPassport: ProjectFileItem | null;
   draftStatus: string | null;
   form: ProjectEditInput;
   hasPendingDraft: boolean;
   isAutofillBusy: boolean;
+  isApplicationBusy: boolean;
   isPending: boolean;
   isPassportBusy: boolean;
   onBoostToHigh: () => void;
@@ -874,6 +944,7 @@ function ProjectEditForm({
     value: ProjectEditInput[K],
   ) => void;
   onDiscardDraft: () => void;
+  onGenerateApplication: () => void;
   onPassportAutofillStart: () => void;
   onPassportDownload: () => void;
   onPassportUpload: (file: File) => void;
@@ -1078,14 +1149,21 @@ function ProjectEditForm({
             </div>
 
             <PassportProjectBlock
+              applicationError={applicationError}
+              applicationMessage={applicationMessage}
+              applicationReady={applicationReady}
               autofillStatus={autofillStatus}
               canBoostToHigh={canBoostToHigh}
+              canGenerateApplication
+              currentApplication={currentApplication}
               currentPassport={currentPassport}
               isAutofillBusy={isAutofillBusy}
+              isApplicationBusy={isApplicationBusy}
               isBusy={isPassportBusy}
               onAutofillStart={onPassportAutofillStart}
               onBoostToHigh={onBoostToHigh}
               onDownload={onPassportDownload}
+              onGenerateApplication={onGenerateApplication}
               onPassportUploadedChange={(value) =>
                 onChange("flagship_passport_uploaded", value)
               }
@@ -1411,14 +1489,21 @@ function InnovateAssessmentBlock({ project }: { project: ProjectDetail }) {
 }
 
 function PassportProjectBlock({
+  applicationError,
+  applicationMessage,
+  applicationReady,
   autofillStatus,
   canBoostToHigh = false,
+  canGenerateApplication = false,
+  currentApplication,
   currentPassport,
   isAutofillBusy,
+  isApplicationBusy,
   isBusy,
   onAutofillStart,
   onBoostToHigh,
   onDownload,
+  onGenerateApplication,
   onPassportUploadedChange,
   onUpload,
   passportUploaded,
@@ -1426,14 +1511,21 @@ function PassportProjectBlock({
   passportMessage,
   variant,
 }: {
+  applicationError: string | null;
+  applicationMessage: string | null;
+  applicationReady: boolean;
   autofillStatus: string | null;
   canBoostToHigh?: boolean;
+  canGenerateApplication?: boolean;
+  currentApplication: ProjectFileItem | null;
   currentPassport: ProjectFileItem | null;
   isAutofillBusy: boolean;
+  isApplicationBusy: boolean;
   isBusy: boolean;
   onAutofillStart: () => void;
   onBoostToHigh?: () => void;
   onDownload: () => void;
+  onGenerateApplication: () => void;
   onPassportUploadedChange?: (value: boolean) => void;
   onUpload?: (file: File) => void;
   passportUploaded: boolean;
@@ -1531,6 +1623,53 @@ function PassportProjectBlock({
           {passportError}
         </p>
       ) : null}
+
+      {currentApplication ? (
+        <dl className="mt-4 grid gap-3 rounded-md border border-emerald-100 bg-emerald-50 p-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-xs font-medium uppercase text-emerald-700">
+              Последняя заявка
+            </dt>
+            <dd className="mt-1 text-slate-700">{currentApplication.file_name}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase text-emerald-700">
+              Шаблон
+            </dt>
+            <dd className="mt-1 text-slate-700">
+              {currentApplication.description ?? "Автоматически определён"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase text-emerald-700">
+              Сформирована
+            </dt>
+            <dd className="mt-1 text-slate-700">
+              {formatDateTime(currentApplication.uploaded_at)}
+            </dd>
+          </div>
+          {currentApplication.version_number ? (
+            <div>
+              <dt className="text-xs font-medium uppercase text-emerald-700">
+                Версия
+              </dt>
+              <dd className="mt-1 text-slate-700">
+                {currentApplication.version_number}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      ) : null}
+      {applicationMessage ? (
+        <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+          {applicationMessage}
+        </p>
+      ) : null}
+      {applicationError ? (
+        <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          {applicationError}
+        </p>
+      ) : null}
       {autofillStatus ? (
         <p className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
           {autofillStatus}
@@ -1545,6 +1684,26 @@ function PassportProjectBlock({
           type="button"
         >
           {isBusy ? "Готовим..." : "Скачать паспорт"}
+        </button>
+        <button
+          className="h-10 w-full rounded-md border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-800 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 sm:w-auto"
+          disabled={
+            !applicationReady ||
+            !canGenerateApplication ||
+            isApplicationBusy ||
+            isBusy
+          }
+          onClick={onGenerateApplication}
+          title={
+            !applicationReady
+              ? "Кнопка станет доступна после загрузки паспорта"
+              : !canGenerateApplication
+                ? "Для формирования заявки нужны права редактора"
+                : "Сформировать и загрузить заявку из данных проекта"
+          }
+          type="button"
+        >
+          {isApplicationBusy ? "Формируем заявку..." : "Сгенерировать заявку"}
         </button>
         {variant === "edit" && !isAutofillBusy ? (
           <button
