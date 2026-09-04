@@ -49,11 +49,12 @@ async function gigachatFetch(
       const dispatcher = new Agent({
         connect: { rejectUnauthorized: false },
       });
-      return (await undiciFetch(url, {
+      const undiciInit = {
         ...init,
         dispatcher,
         signal: controller.signal,
-      })) as unknown as Response;
+      } as Parameters<typeof undiciFetch>[1];
+      return (await undiciFetch(url, undiciInit)) as unknown as Response;
     }
 
     return await fetch(url, {
