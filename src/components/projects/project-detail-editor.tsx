@@ -7,6 +7,7 @@ import {
   boostPassportToHighAction,
   finalizePassportAutofillAction,
   generateProjectApplicationAction,
+  getApplicationDownloadUrlAction,
   getPassportAutofillStatusAction,
   getPassportDownloadUrlAction,
   type ProjectEditInput,
@@ -621,6 +622,13 @@ export function ProjectDetailEditor({
 
       setApplicationMessage(result.message);
       router.refresh();
+      if (result.fileId) {
+        try {
+          await downloadApplication(result.fileId);
+        } catch {
+          setApplicationError("Заявка сохранена, но автоматически скачать её не удалось. Нажмите «Скачать заявку».");
+        }
+      }
     } catch {
       setApplicationError("Не удалось сформировать заявку. Попробуйте позже.");
     } finally {
@@ -1488,6 +1496,21 @@ function InnovateAssessmentBlock({ project }: { project: ProjectDetail }) {
   );
 }
 
+async function downloadApplication(fileId: string) {
+  const result = await getApplicationDownloadUrlAction(fileId);
+  if (!result.ok || !result.url) throw new Error(result.message);
+  const response = await fetch(result.url);
+  if (!response.ok) throw new Error("Не удалось скачать заявку");
+  const objectUrl = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = result.fileName || "Заявка.docx";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+}
+
 function PassportProjectBlock({
   applicationError,
   applicationMessage,
@@ -1533,6 +1556,22 @@ function PassportProjectBlock({
   passportMessage: string | null;
   variant: "edit" | "readonly";
 }) {
+  const [isDownloadingApplication, setIsDownloadingApplication] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  async function handleDownloadApplication() {
+    if (!currentApplication) return;
+    setDownloadError(null);
+    setIsDownloadingApplication(true);
+    try {
+      await downloadApplication(currentApplication.id);
+    } catch {
+      setDownloadError("Не удалось скачать заявку. Попробуйте ещё раз.");
+    } finally {
+      setIsDownloadingApplication(false);
+    }
+  }
+
   const uploaderLabel =
     currentPassport?.profile?.display_name ??
     currentPassport?.profile?.email ??
@@ -1626,6 +1665,10 @@ function PassportProjectBlock({
 
       {currentApplication ? (
         <dl className="mt-4 grid gap-3 rounded-md border border-emerald-100 bg-emerald-50 p-3 text-sm sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <dt className="sr-only">Статус заявки</dt>
+            <dd><StatusIndicator active activeLabel="Заявка сгенерирована" inactiveLabel="Заявка не сгенерирована" /></dd>
+          </div>
           <div>
             <dt className="text-xs font-medium uppercase text-emerald-700">
               Последняя заявка
@@ -1676,35 +1719,8 @@ function PassportProjectBlock({
         </p>
       ) : null}
 
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-        <button
-          className="h-10 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 sm:w-auto"
-          disabled={!currentPassport || isBusy}
-          onClick={onDownload}
-          type="button"
-        >
-          {isBusy ? "Готовим..." : "Скачать паспорт"}
-        </button>
-        <button
-          className="h-10 w-full rounded-md border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-800 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 sm:w-auto"
-          disabled={
-            !applicationReady ||
-            !canGenerateApplication ||
-            isApplicationBusy ||
-            isBusy
-          }
-          onClick={onGenerateApplication}
-          title={
-            !applicationReady
-              ? "Кнопка станет доступна после загрузки паспорта"
-              : !canGenerateApplication
-                ? "Для формирования заявки нужны права редактора"
-                : "Сформировать и загрузить заявку из данных проекта"
-          }
-          type="button"
-        >
-          {isApplicationBusy ? "Формируем заявку..." : "Сгенерировать заявку"}
-        </button>
+      {downloadError ? <p role="alert" className="mt-4 text-sm text-rose-800">{downloadError}</p> : null}
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {variant === "edit" && !isAutofillBusy ? (
           <button
             className="h-10 w-full rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:bg-indigo-50 disabled:text-indigo-300 sm:w-auto"
@@ -1715,17 +1731,14 @@ function PassportProjectBlock({
             Автозаполнить паспорт
           </button>
         ) : null}
-        {variant === "edit" && canBoostToHigh && !isAutofillBusy ? (
-          <button
-            className="h-10 w-full rounded-md border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-900 shadow-sm transition hover:border-amber-300 hover:bg-amber-100 disabled:cursor-not-allowed disabled:bg-amber-50 disabled:text-amber-300 sm:w-auto"
-            disabled={isBusy}
-            onClick={onBoostToHigh}
-            title="GigaChat органично вставит маркер в функциональность GenAI и один раз оценит проект в Innovate"
-            type="button"
-          >
-            Докрутить до High
-          </button>
-        ) : null}
+        <button
+          className="h-10 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 sm:w-auto"
+          disabled={!currentPassport || isBusy}
+          onClick={onDownload}
+          type="button"
+        >
+          {isBusy ? "Готовим..." : "Скачать паспорт"}
+        </button>
         {variant === "edit" ? (
           <label className="inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950 sm:w-auto">
             <span>
@@ -1746,6 +1759,45 @@ function PassportProjectBlock({
               type="file"
             />
           </label>
+        ) : null}
+        <button
+          className="h-10 w-full rounded-md border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-800 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 sm:w-auto"
+          disabled={
+            !applicationReady ||
+            !canGenerateApplication ||
+            isApplicationBusy ||
+            isBusy
+          }
+          onClick={onGenerateApplication}
+          title={
+            !applicationReady
+              ? "Кнопка станет доступна после загрузки паспорта"
+              : !canGenerateApplication
+                ? "Для формирования заявки нужны права редактора"
+                : "Сформировать и загрузить заявку из данных проекта"
+          }
+          type="button"
+        >
+          {isApplicationBusy ? "Формируем заявку..." : "Сгенерировать заявку"}
+        </button>
+        <button
+          className="h-10 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400 sm:w-auto"
+          disabled={!currentApplication || isApplicationBusy || isDownloadingApplication}
+          onClick={handleDownloadApplication}
+          type="button"
+        >
+          {isDownloadingApplication ? "Скачиваем заявку..." : "Скачать заявку"}
+        </button>
+        {variant === "edit" && canBoostToHigh && !isAutofillBusy ? (
+          <button
+            className="h-10 w-full rounded-md border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-900 shadow-sm transition hover:border-amber-300 hover:bg-amber-100 disabled:cursor-not-allowed disabled:bg-amber-50 disabled:text-amber-300 sm:w-auto"
+            disabled={isBusy}
+            onClick={onBoostToHigh}
+            title="GigaChat органично вставит маркер в функциональность GenAI и один раз оценит проект в Innovate"
+            type="button"
+          >
+            Докрутить до High
+          </button>
         ) : null}
       </div>
 

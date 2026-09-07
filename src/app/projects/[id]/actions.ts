@@ -119,6 +119,7 @@ export type PassportAutofillFinalizeResult = ProjectEditResult & {
 };
 
 export type ProjectApplicationGenerateResult = ProjectEditResult & {
+  fileId?: string;
   applicationType?: string;
   fileName?: string;
 };
@@ -1313,6 +1314,23 @@ export async function getPassportDownloadUrlAction(
   };
 }
 
+export async function getApplicationDownloadUrlAction(fileId: string): Promise<PassportDownloadResult> {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Нужно войти в систему, чтобы скачать заявку." };
+
+  const { data: file, error } = await supabase.from("project_files")
+    .select("file_name, storage_path")
+    .eq("id", fileId).eq("file_type", "application")
+    .is("deleted_at", null).maybeSingle();
+  if (error || !file) return { ok: false, message: "Заявка не найдена или недоступна." };
+
+  const { data, error: urlError } = await supabase.storage.from("project-files")
+    .createSignedUrl(file.storage_path, 60, { download: "Application.docx" });
+  if (urlError || !data?.signedUrl) return { ok: false, message: "Не удалось подготовить скачивание заявки." };
+  return { ok: true, message: "Ссылка готова.", url: data.signedUrl, fileName: file.file_name };
+}
+
 export async function generateProjectApplicationAction(
   projectId: string,
 ): Promise<ProjectApplicationGenerateResult> {
@@ -1448,6 +1466,7 @@ export async function generateProjectApplicationAction(
       .filter(Boolean)
       .join(" "),
     applicationType: applicationTypeLabel,
+    fileId: insertedFile.id,
     fileName,
   };
 }
