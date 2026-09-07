@@ -21,6 +21,7 @@ export default async function ProjectDetailPage({
   } = await supabase.auth.getUser();
   const {
     changes,
+    currentApplication,
     currentPassport,
     currentProfile,
     errorMessage,
@@ -59,6 +60,7 @@ export default async function ProjectDetailPage({
               canEdit={canEdit}
               canEditPassportFields={canEditPassportFields}
               changes={changes}
+              currentApplication={currentApplication}
               currentPassport={currentPassport}
               draftOwnerKey={currentProfile?.id ?? user?.email ?? "anonymous"}
               project={project}

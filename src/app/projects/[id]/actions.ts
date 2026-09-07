@@ -2,6 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 
+import {
+  getProjectApplicationTypeLabel,
+} from "@/lib/application/project-application";
+import { generateProjectApplicationContent } from "@/lib/application/application-llm";
+import {
+  buildProjectApplicationDocx,
+  getProjectApplicationFilename,
+} from "@/lib/document/project-document-docx";
 import { PassportFillerClient } from "@/lib/passport-filler/client";
 import {
   formatInnovateAssessmentReason,
@@ -10,6 +18,7 @@ import {
   mapProjectToPassportFillerInput,
 } from "@/lib/passport-filler/mappers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getProjectDetail } from "@/lib/supabase/project-registry";
 import type { ProjectDetail } from "@/types/project-registry";
 import type {
   PassportFillerProjectState,
@@ -107,6 +116,11 @@ export type PassportAutofillFinalizeResult = ProjectEditResult & {
     | "flagship_innovation_level"
     | "flagship_innovation_reason"
   >;
+};
+
+export type ProjectApplicationGenerateResult = ProjectEditResult & {
+  applicationType?: string;
+  fileName?: string;
 };
 
 export type ProjectCreateResult = ProjectEditResult & {
@@ -1296,6 +1310,145 @@ export async function getPassportDownloadUrlAction(
     message: "Ссылка на скачивание готова.",
     url: data.signedUrl,
     fileName: passport.file_name,
+  };
+}
+
+export async function generateProjectApplicationAction(
+  projectId: string,
+): Promise<ProjectApplicationGenerateResult> {
+  const supabase = await createServerSupabaseClient();
+  const auth = await requireEditorProfile(
+    supabase,
+    "Нужно войти в систему, чтобы сформировать заявку.",
+    "У вас нет прав на формирование заявки.",
+  );
+
+  if (!auth.ok) {
+    return auth.result;
+  }
+
+  const { project, errorMessage } = await getProjectDetail(projectId);
+
+  if (errorMessage || !project) {
+    return {
+      ok: false,
+      message: "Не удалось прочитать данные проекта для формирования заявки.",
+    };
+  }
+
+  if (!project.flagship_passport_uploaded) {
+    return {
+      ok: false,
+      message: "Сначала загрузите паспорт проекта.",
+    };
+  }
+
+  const generated = await generateProjectApplicationContent(project);
+  const applicationType = generated.type;
+  const applicationTypeLabel = getProjectApplicationTypeLabel(applicationType);
+  const fileName = getProjectApplicationFilename(project, applicationType);
+  const document = buildProjectApplicationDocx(
+    project,
+    applicationType,
+    generated.sections,
+  );
+  const storagePath = `projects/${projectId}/application/${Date.now()}-application.docx`;
+  const mimeType =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+  const { data: currentApplications, error: currentApplicationsError } =
+    await supabase
+      .from("project_files")
+      .select("version_number")
+      .eq("project_id", projectId)
+      .eq("file_type", "application")
+      .order("version_number", { ascending: false, nullsFirst: false })
+      .limit(1);
+
+  if (currentApplicationsError) {
+    return {
+      ok: false,
+      message: "Не удалось определить версию заявки.",
+    };
+  }
+
+  const nextVersion = (currentApplications?.[0]?.version_number ?? 0) + 1;
+  const { error: uploadError } = await supabase.storage
+    .from("project-files")
+    .upload(storagePath, document, {
+      contentType: mimeType,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return {
+      ok: false,
+      message: `Не удалось загрузить заявку: ${getActionErrorMessage(uploadError)}`,
+    };
+  }
+
+  const { data: insertedFile, error: fileInsertError } = await supabase
+    .from("project_files")
+    .insert({
+      project_id: projectId,
+      file_type: "application",
+      file_name: fileName,
+      storage_path: storagePath,
+      mime_type: mimeType,
+      size_bytes: document.byteLength,
+      uploaded_by: auth.profile.id,
+      version_number: nextVersion,
+      is_current: true,
+      description: `${generated.templateName}; ${generated.mode === "llm" ? "GigaChat" : "резервные правила"}`,
+    })
+    .select("id")
+    .single();
+
+  if (fileInsertError) {
+    await supabase.storage.from("project-files").remove([storagePath]);
+    return {
+      ok: false,
+      message: "Заявка загружена, но её метаданные сохранить не удалось.",
+    };
+  }
+
+  const { error: previousVersionError } = await supabase
+    .from("project_files")
+    .update({ is_current: false })
+    .eq("project_id", projectId)
+    .eq("file_type", "application")
+    .eq("is_current", true)
+    .neq("id", insertedFile.id);
+
+  if (previousVersionError) {
+    return {
+      ok: false,
+      message:
+        "Заявка сформирована, но не удалось пометить предыдущую версию как архивную.",
+    };
+  }
+
+  await supabase.from("project_changes").insert({
+    project_id: projectId,
+    changed_by: auth.profile.id,
+    field_name: "application_generated",
+    old_value: null,
+    new_value: `${applicationTypeLabel}; ${fileName}`,
+    source: "web_application_generator",
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+
+  return {
+    ok: true,
+    message: [
+      `Заявка сформирована и загружена. Тип: ${applicationTypeLabel}.`,
+      generated.warning,
+    ]
+      .filter(Boolean)
+      .join(" "),
+    applicationType: applicationTypeLabel,
+    fileName,
   };
 }
 
