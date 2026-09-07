@@ -19,7 +19,7 @@ import {
 } from "@/lib/passport-filler/mappers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProjectDetail } from "@/lib/supabase/project-registry";
-import type { ProjectDetail } from "@/types/project-registry";
+import type { ProjectDetail, ProjectFileItem } from "@/types/project-registry";
 import type {
   PassportFillerProjectState,
   PassportFillerProjectStatus,
@@ -119,6 +119,9 @@ export type PassportAutofillFinalizeResult = ProjectEditResult & {
 };
 
 export type ProjectApplicationGenerateResult = ProjectEditResult & {
+  statusId?: string;
+  statusWarning?: string;
+  application?: ProjectFileItem;
   fileId?: string;
   applicationType?: string;
   fileName?: string;
@@ -1361,6 +1364,16 @@ export async function generateProjectApplicationAction(
     };
   }
 
+  const { data: generatedStatus, error: statusLookupError } = await supabase
+    .from("project_statuses")
+    .select("id")
+    .eq("name", "Заявка сгенерирована")
+    .eq("is_active", true)
+    .maybeSingle();
+  if (statusLookupError || !generatedStatus) {
+    return { ok: false, message: "Не найден основной статус «Заявка сгенерирована». Администратору необходимо применить миграцию 20260907120000_add_application_generated_status.sql." };
+  }
+
   const generated = await generateProjectApplicationContent(project);
   const applicationType = generated.type;
   const applicationTypeLabel = getProjectApplicationTypeLabel(applicationType);
@@ -1419,7 +1432,7 @@ export async function generateProjectApplicationAction(
       is_current: true,
       description: `${generated.templateName}; ${generated.mode === "llm" ? "GigaChat" : "резервные правила"}`,
     })
-    .select("id")
+    .select("id, project_id, file_name, storage_path, mime_type, size_bytes, uploaded_by, uploaded_at, file_type, version_number, is_current, description")
     .single();
 
   if (fileInsertError) {
@@ -1455,7 +1468,27 @@ export async function generateProjectApplicationAction(
     source: "web_application_generator",
   });
 
+  const { data: updatedProject, error: statusUpdateError } = await supabase
+    .from("projects")
+    .update({ status_id: generatedStatus.id })
+    .eq("id", projectId)
+    .select("id")
+    .maybeSingle();
+  const statusUpdated = !statusUpdateError && Boolean(updatedProject);
+  if (statusUpdated && project.status_id !== generatedStatus.id) {
+    await supabase.from("project_changes").insert({
+      project_id: projectId,
+      changed_by: auth.profile.id,
+      field_name: "status_id",
+      old_value: project.status?.name ?? null,
+      new_value: "Заявка сгенерирована",
+      source: "web_application_generator",
+    });
+  }
+
   revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects");
+  revalidatePath("/dashboard");
 
   return {
     ok: true,
@@ -1466,6 +1499,9 @@ export async function generateProjectApplicationAction(
       .filter(Boolean)
       .join(" "),
     applicationType: applicationTypeLabel,
+    statusId: statusUpdated ? generatedStatus.id : undefined,
+    statusWarning: statusUpdated ? undefined : "Заявка сохранена, но основной статус проекта обновить не удалось. Обновите статус вручную.",
+    application: { ...insertedFile, profile: null },
     fileId: insertedFile.id,
     fileName,
   };

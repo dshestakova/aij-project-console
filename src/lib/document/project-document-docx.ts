@@ -260,9 +260,9 @@ function applicationAnswerBox(value: string) {
         <w:right w:val="single" w:sz="6" w:space="0" w:color="D8DEE9"/>
       </w:tblBorders>
     </w:tblPr>
-    <w:tr><w:tc>
+    <w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc>
       <w:tcPr><w:tcW w:w="100" w:type="pct"/><w:shd w:fill="F8FAFC"/></w:tcPr>
-      <w:p>${taggedRuns(value)}</w:p>
+      <w:p><w:pPr><w:keepLines/><w:widowControl/></w:pPr>${taggedRuns(value)}</w:p>
     </w:tc></w:tr>
   </w:tbl>`;
 }
@@ -335,6 +335,7 @@ function table(rows: TableRow[]) {
 
 function tableRow(label: string, value: string) {
   return `<w:tr>
+    <w:trPr><w:cantSplit/></w:trPr>
     ${tableCell(label, true)}
     ${tableCell(value)}
   </w:tr>`;
@@ -451,7 +452,7 @@ function stylesXml() {
   <w:style w:type="paragraph" w:styleId="Title">
     <w:name w:val="Title"/>
     <w:rPr><w:b/><w:sz w:val="34"/><w:color w:val="0F172A"/></w:rPr>
-    <w:pPr><w:spacing w:after="120"/></w:pPr>
+    <w:pPr><w:keepNext/><w:keepLines/><w:spacing w:after="120"/></w:pPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Subtitle">
     <w:name w:val="Subtitle"/>
@@ -461,12 +462,12 @@ function stylesXml() {
   <w:style w:type="paragraph" w:styleId="Heading2">
     <w:name w:val="heading 2"/>
     <w:rPr><w:b/><w:sz w:val="28"/><w:color w:val="0F172A"/></w:rPr>
-    <w:pPr><w:spacing w:before="260" w:after="120"/></w:pPr>
+    <w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="260" w:after="120"/></w:pPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading3">
     <w:name w:val="heading 3"/>
     <w:rPr><w:b/><w:sz w:val="24"/><w:color w:val="334155"/></w:rPr>
-    <w:pPr><w:spacing w:before="180" w:after="80"/></w:pPr>
+    <w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="180" w:after="80"/></w:pPr>
   </w:style>
 </w:styles>`;
 }

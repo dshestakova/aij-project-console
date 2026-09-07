@@ -236,6 +236,10 @@ export function ProjectDetailEditor({
   const [applicationMessage, setApplicationMessage] = useState<string | null>(null);
   const [applicationError, setApplicationError] = useState<string | null>(null);
   const [isApplicationBusy, setIsApplicationBusy] = useState(false);
+  const [generatedApplication, setGeneratedApplication] = useState<ProjectFileItem | null>(null);
+  const latestApplication = generatedApplication?.project_id === project.id &&
+    (!currentApplication || generatedApplication.uploaded_at >= currentApplication.uploaded_at)
+    ? generatedApplication : currentApplication;
   const [isPending, startTransition] = useTransition();
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
@@ -608,6 +612,7 @@ export function ProjectDetailEditor({
   }
 
   async function handleGenerateApplication() {
+    if (isApplicationBusy) return;
     setApplicationMessage(null);
     setApplicationError(null);
     setIsApplicationBusy(true);
@@ -620,7 +625,13 @@ export function ProjectDetailEditor({
         return;
       }
 
+      if (result.application) setGeneratedApplication(result.application);
+      if (result.statusId) {
+        setForm((previous) => ({ ...previous, status_id: result.statusId! }));
+      }
+      if (result.statusWarning) setApplicationError(result.statusWarning);
       setApplicationMessage(result.message);
+      setIsApplicationBusy(false);
       router.refresh();
       if (result.fileId) {
         try {
@@ -638,6 +649,15 @@ export function ProjectDetailEditor({
 
   return (
     <>
+      {isApplicationBusy ? (
+        <div role="status" aria-live="polite" aria-atomic="true" className="fixed bottom-5 left-4 right-4 z-50 flex items-center gap-3 rounded-xl border border-emerald-200 bg-white p-4 shadow-lg sm:left-auto sm:right-6 sm:w-80">
+          <span aria-hidden="true" className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-700 motion-reduce:animate-none" />
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Заявка генерируется…</p>
+            <p className="mt-1 text-xs text-slate-500">Дождитесь завершения. Файл скачается автоматически.</p>
+          </div>
+        </div>
+      ) : null}
       <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
@@ -736,7 +756,7 @@ export function ProjectDetailEditor({
           applicationReady={project.flagship_passport_uploaded}
           canBoostToHigh={canEditPassportFields}
           canEditPassportFields={canEditPassportFields}
-          currentApplication={currentApplication}
+          currentApplication={latestApplication}
           currentPassport={currentPassport}
           form={form}
           draftStatus={draftStatus}
@@ -768,7 +788,7 @@ export function ProjectDetailEditor({
           applicationError={applicationError}
           applicationMessage={applicationMessage}
           canGenerateApplication={canEdit}
-          currentApplication={currentApplication}
+          currentApplication={latestApplication}
           currentPassport={currentPassport}
           isApplicationBusy={isApplicationBusy}
           isPassportBusy={isPassportBusy}
@@ -1720,7 +1740,7 @@ function PassportProjectBlock({
       ) : null}
 
       {downloadError ? <p role="alert" className="mt-4 text-sm text-rose-800">{downloadError}</p> : null}
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <div className="project-document-actions mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {variant === "edit" && !isAutofillBusy ? (
           <button
             className="h-10 w-full rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:bg-indigo-50 disabled:text-indigo-300 sm:w-auto"

@@ -30,6 +30,13 @@ body {
     sans-serif;
 }
 
+.project-document-actions > button,
+.project-document-actions > label {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
 button,
 input,
 select,
