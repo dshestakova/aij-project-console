@@ -19,7 +19,7 @@ import {
 } from "@/lib/passport-filler/mappers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getProjectDetail } from "@/lib/supabase/project-registry";
-import type { ProjectDetail } from "@/types/project-registry";
+import type { ProjectDetail, ProjectFileItem } from "@/types/project-registry";
 import type {
   PassportFillerProjectState,
   PassportFillerProjectStatus,
@@ -119,6 +119,10 @@ export type PassportAutofillFinalizeResult = ProjectEditResult & {
 };
 
 export type ProjectApplicationGenerateResult = ProjectEditResult & {
+  statusId?: string;
+  statusWarning?: string;
+  application?: ProjectFileItem;
+  fileId?: string;
   applicationType?: string;
   fileName?: string;
 };
@@ -1313,6 +1317,23 @@ export async function getPassportDownloadUrlAction(
   };
 }
 
+export async function getApplicationDownloadUrlAction(fileId: string): Promise<PassportDownloadResult> {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Нужно войти в систему, чтобы скачать заявку." };
+
+  const { data: file, error } = await supabase.from("project_files")
+    .select("file_name, storage_path")
+    .eq("id", fileId).eq("file_type", "application")
+    .is("deleted_at", null).maybeSingle();
+  if (error || !file) return { ok: false, message: "Заявка не найдена или недоступна." };
+
+  const { data, error: urlError } = await supabase.storage.from("project-files")
+    .createSignedUrl(file.storage_path, 60, { download: "Application.docx" });
+  if (urlError || !data?.signedUrl) return { ok: false, message: "Не удалось подготовить скачивание заявки." };
+  return { ok: true, message: "Ссылка готова.", url: data.signedUrl, fileName: file.file_name };
+}
+
 export async function generateProjectApplicationAction(
   projectId: string,
 ): Promise<ProjectApplicationGenerateResult> {
@@ -1341,6 +1362,16 @@ export async function generateProjectApplicationAction(
       ok: false,
       message: "Сначала загрузите паспорт проекта.",
     };
+  }
+
+  const { data: generatedStatus, error: statusLookupError } = await supabase
+    .from("project_statuses")
+    .select("id")
+    .eq("name", "Заявка сгенерирована")
+    .eq("is_active", true)
+    .maybeSingle();
+  if (statusLookupError || !generatedStatus) {
+    return { ok: false, message: "Не найден основной статус «Заявка сгенерирована». Администратору необходимо применить миграцию 20260907120000_add_application_generated_status.sql." };
   }
 
   const generated = await generateProjectApplicationContent(project);
@@ -1401,7 +1432,7 @@ export async function generateProjectApplicationAction(
       is_current: true,
       description: `${generated.templateName}; ${generated.mode === "llm" ? "GigaChat" : "резервные правила"}`,
     })
-    .select("id")
+    .select("id, project_id, file_name, storage_path, mime_type, size_bytes, uploaded_by, uploaded_at, file_type, version_number, is_current, description")
     .single();
 
   if (fileInsertError) {
@@ -1437,7 +1468,27 @@ export async function generateProjectApplicationAction(
     source: "web_application_generator",
   });
 
+  const { data: updatedProject, error: statusUpdateError } = await supabase
+    .from("projects")
+    .update({ status_id: generatedStatus.id })
+    .eq("id", projectId)
+    .select("id")
+    .maybeSingle();
+  const statusUpdated = !statusUpdateError && Boolean(updatedProject);
+  if (statusUpdated && project.status_id !== generatedStatus.id) {
+    await supabase.from("project_changes").insert({
+      project_id: projectId,
+      changed_by: auth.profile.id,
+      field_name: "status_id",
+      old_value: project.status?.name ?? null,
+      new_value: "Заявка сгенерирована",
+      source: "web_application_generator",
+    });
+  }
+
   revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects");
+  revalidatePath("/dashboard");
 
   return {
     ok: true,
@@ -1448,6 +1499,10 @@ export async function generateProjectApplicationAction(
       .filter(Boolean)
       .join(" "),
     applicationType: applicationTypeLabel,
+    statusId: statusUpdated ? generatedStatus.id : undefined,
+    statusWarning: statusUpdated ? undefined : "Заявка сохранена, но основной статус проекта обновить не удалось. Обновите статус вручную.",
+    application: { ...insertedFile, profile: null },
+    fileId: insertedFile.id,
     fileName,
   };
 }
